@@ -20,6 +20,8 @@ import employeeJobRoutes from './employeeJobRoutes.js'
 import employeeApplicationRoutes from './employeeApplicationRoutes.js'
 import employeeMockInterviewRoutes from './employeeMockInterviewRoutes.js'
 import employeeInterviewRoutes from './employeeInterviewRoutes.js'
+import employeeNotificationRoutes from './employeeNotificationRoutes.js'
+import employeeMessageRoutes from './employeeMessageRoutes.js'
 import staffAuthRoutes from './staffAuthRoutes.js'
 import staffCompanyRoutes from './staffCompanyRoutes.js'
 import staffJobRoutes from './staffJobRoutes.js'
@@ -55,6 +57,8 @@ employeeRoutes.use('/jobs', employeeJobRoutes)
 employeeRoutes.use('/applications', employeeApplicationRoutes)
 employeeRoutes.use('/mock-interview', employeeMockInterviewRoutes)
 employeeRoutes.use('/interviews', employeeInterviewRoutes)
+employeeRoutes.use('/notifications', employeeNotificationRoutes)
+employeeRoutes.use('/messages', employeeMessageRoutes)
 
 const staffRoutes = Router()
 staffRoutes.use('/auth', staffAuthRoutes)
