@@ -20,7 +20,13 @@ export const requireStaffAuth = asyncHandler(async (req, res, next) => {
 
   const staff = await StaffUser.findById(payload.sub)
   if (!staff) return res.status(401).json({ message: 'Staff account no longer exists' })
+  if (staff.status === 'disabled') return res.status(401).json({ message: 'This staff account has been disabled' })
 
   req.staff = staff
   next()
 })
+
+export const requireAdmin = (req, res, next) => {
+  if (req.staff?.accessLevel !== 'admin') return res.status(403).json({ message: 'Admin access required' })
+  next()
+}

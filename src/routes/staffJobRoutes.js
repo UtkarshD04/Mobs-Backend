@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { requireStaffAuth } from '../middleware/staffAuth.js'
+import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
 import { listJobs, getJob, approveJob, recordJobPayment } from '../controllers/staffJobController.js'
 
 const router = Router()
 
-router.use(requireStaffAuth)
+router.use(requireStaffAuth, requireAdmin)
 
 router.get('/', listJobs)
 router.get('/:id', getJob)

@@ -56,6 +56,7 @@ async function seed() {
       email: env.seedStaffEmail,
       passwordHash: staffPasswordHash,
       role: 'Operations Manager',
+      accessLevel: 'admin',
       status: 'active',
     })
     console.log(`Created staff user: ${staff.email}`)

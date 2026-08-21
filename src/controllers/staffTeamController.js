@@ -13,12 +13,15 @@ export const listTeam = asyncHandler(async (req, res) => {
   res.json(data)
 })
 
-// No email-invite flow yet — an authenticated staff member provisions a
-// teammate directly with a generated temporary password.
+// No email-invite flow yet — an admin provisions a teammate directly with a
+// generated temporary password.
 export const createTeammate = asyncHandler(async (req, res) => {
-  const { name, email, role } = req.body ?? {}
+  const { name, email, role, accessLevel } = req.body ?? {}
   if (!name || !email || !role) return res.status(400).json({ message: 'name, email and role are required' })
   if (!ROLES.includes(role)) return res.status(400).json({ message: 'Invalid role' })
+  if (accessLevel && !['admin', 'staff'].includes(accessLevel)) {
+    return res.status(400).json({ message: 'Invalid access level' })
+  }
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await StaffUser.findOne({ email: normalizedEmail })
@@ -32,6 +35,7 @@ export const createTeammate = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     passwordHash,
     role,
+    accessLevel: accessLevel ?? 'staff',
     status: 'invited',
   })
 
@@ -39,4 +43,28 @@ export const createTeammate = asyncHandler(async (req, res) => {
 
   staff.passwordHash = undefined
   res.status(201).json({ staff, tempPassword })
+})
+
+export const updateTeammate = asyncHandler(async (req, res) => {
+  const { accessLevel, status } = req.body ?? {}
+  if (accessLevel === undefined && status === undefined) {
+    return res.status(400).json({ message: 'Nothing to update' })
+  }
+  if (accessLevel !== undefined && !['admin', 'staff'].includes(accessLevel)) {
+    return res.status(400).json({ message: 'Invalid access level' })
+  }
+  if (status !== undefined && !['active', 'invited', 'disabled'].includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' })
+  }
+
+  const staff = await StaffUser.findById(req.params.id)
+  if (!staff) return res.status(404).json({ message: 'Staff account not found' })
+
+  if (accessLevel !== undefined) staff.accessLevel = accessLevel
+  if (status !== undefined) staff.status = status
+  await staff.save()
+
+  await logStaffActivity(`${req.staff.name} updated ${staff.name}'s account`, 'navy')
+
+  res.json({ staff })
 })

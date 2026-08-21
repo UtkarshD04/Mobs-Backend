@@ -11,8 +11,11 @@ const staffUserSchema = new Schema(
       enum: ['Operations Manager', 'Resume Verification Lead', 'Interview Panel', 'Employer Success', 'Compliance & KYC'],
       required: true,
     },
-    status: { type: String, enum: ['active', 'invited'], default: 'active' },
+    accessLevel: { type: String, enum: ['admin', 'staff'], default: 'staff' },
+    status: { type: String, enum: ['active', 'invited', 'disabled'], default: 'active' },
     lastActiveAt: { type: Date, default: null },
+    resetPasswordToken: { type: String, default: null, select: false },
+    resetPasswordExpires: { type: Date, default: null, select: false },
   },
   { timestamps: true }
 )

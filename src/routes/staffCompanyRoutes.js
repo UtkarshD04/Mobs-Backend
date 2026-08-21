@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireStaffAuth } from '../middleware/staffAuth.js'
+import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
 import {
   listCompanies,
   getCompany,
@@ -12,7 +12,7 @@ import {
 
 const router = Router()
 
-router.use(requireStaffAuth)
+router.use(requireStaffAuth, requireAdmin)
 
 router.get('/', listCompanies)
 router.get('/:id', getCompany)

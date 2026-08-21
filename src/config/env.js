@@ -25,6 +25,9 @@ export const env = {
   // Base URL of the marketing site — used to build the link inside
   // password-reset emails (e.g. `${frontendUrl}/employees/reset-password?token=...`).
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5176',
+  // Base URL of the internal staff portal (Company-Frontend) — used to build
+  // the link inside staff password-reset emails.
+  staffFrontendUrl: process.env.STAFF_FRONTEND_URL ?? 'http://localhost:5174',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 587),

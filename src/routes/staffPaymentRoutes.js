@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { requireStaffAuth } from '../middleware/staffAuth.js'
+import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
 import { listPayments, recordSubscriptionPayment } from '../controllers/staffPaymentController.js'
 
 const router = Router()
 
-router.use(requireStaffAuth)
+router.use(requireStaffAuth, requireAdmin)
 
 router.get('/', listPayments)
 router.patch('/subscriptions/:employeeId', recordSubscriptionPayment)

@@ -33,6 +33,7 @@ import staffEmployeeRoutes from './staffEmployeeRoutes.js'
 import staffPaymentRoutes from './staffPaymentRoutes.js'
 import staffTeamRoutes from './staffTeamRoutes.js'
 import staffDashboardRoutes from './staffDashboardRoutes.js'
+import resumePoolRoutes from './resumePoolRoutes.js'
 
 const employerRoutes = Router()
 employerRoutes.use('/auth', authRoutes)
@@ -72,6 +73,7 @@ staffRoutes.use('/employees', staffEmployeeRoutes)
 staffRoutes.use('/payments', staffPaymentRoutes)
 staffRoutes.use('/team', staffTeamRoutes)
 staffRoutes.use('/dashboard', staffDashboardRoutes)
+staffRoutes.use('/resume-pool', resumePoolRoutes)
 
 const router = Router()
 router.use('/employer', employerRoutes)
