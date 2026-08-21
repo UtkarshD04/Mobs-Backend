@@ -66,6 +66,12 @@ const employeeSchema = new Schema(
     resetPasswordToken: { type: String, default: null, select: false },
     resetPasswordExpires: { type: Date, default: null, select: false },
 
+    pushTokens: { type: [String], default: [] },
+    webPushSubscriptions: {
+      type: [{ endpoint: String, keys: { p256dh: String, auth: String } }],
+      default: [],
+    },
+
     // Profile — collected across the onboarding wizard / profile editor
     phone: { type: String, default: '' },
     dob: { type: String, default: '' },

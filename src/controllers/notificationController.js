@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import Notification from '../models/Notification.js'
+import { sendPush } from '../utils/push.js'
 
 function toNotification(n) {
   return {
@@ -26,4 +27,15 @@ export const markAsRead = asyncHandler(async (req, res) => {
 export const markAllRead = asyncHandler(async (req, res) => {
   await Notification.updateMany({ company: req.company._id }, { unread: false })
   res.json({ success: true })
+})
+
+export const sendTestPush = asyncHandler(async (req, res) => {
+  const notification = await Notification.create({
+    company: req.company._id,
+    category: 'system',
+    title: 'Test notification',
+    body: `Hey ${req.user.name}, push notifications are working.`,
+  })
+  await sendPush(req.user, { title: notification.title, body: notification.body })
+  res.status(201).json(toNotification(notification))
 })

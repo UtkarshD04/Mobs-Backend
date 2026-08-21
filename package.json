@@ -13,6 +13,7 @@
     "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "expo-server-sdk": "^7.1.0",
     "express": "^4.19.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.6.2",
@@ -23,7 +24,8 @@
     "nodemailer": "^9.0.5",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
-    "razorpay": "^2.9.8"
+    "razorpay": "^2.9.8",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.4",
