@@ -35,12 +35,10 @@ import staffEmployeeRoutes from './staffEmployeeRoutes.js'
 import staffPaymentRoutes from './staffPaymentRoutes.js'
 import staffTeamRoutes from './staffTeamRoutes.js'
 import staffDashboardRoutes from './staffDashboardRoutes.js'
-<<<<<<< Updated upstream
 import resumePoolRoutes from './resumePoolRoutes.js'
-=======
 import staffPushRoutes from './staffPushRoutes.js'
+import staffNotificationRoutes from './staffNotificationRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
->>>>>>> Stashed changes
 
 const employerRoutes = Router()
 employerRoutes.use('/auth', authRoutes)
@@ -82,11 +80,9 @@ staffRoutes.use('/employees', staffEmployeeRoutes)
 staffRoutes.use('/payments', staffPaymentRoutes)
 staffRoutes.use('/team', staffTeamRoutes)
 staffRoutes.use('/dashboard', staffDashboardRoutes)
-<<<<<<< Updated upstream
 staffRoutes.use('/resume-pool', resumePoolRoutes)
-=======
 staffRoutes.use('/push', staffPushRoutes)
->>>>>>> Stashed changes
+staffRoutes.use('/notifications', staffNotificationRoutes)
 
 const router = Router()
 router.use('/employer', employerRoutes)

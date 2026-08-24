@@ -1,10 +1,12 @@
 import { Router } from 'express'
-import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
+import { requireStaffAuth } from '../middleware/staffAuth.js'
 import { listMockInterviews, scheduleMockInterview, completeMockInterview, markNoShow } from '../controllers/staffMockInterviewController.js'
 
 const router = Router()
 
-router.use(requireStaffAuth, requireAdmin)
+// Any staff member (admin or HR) can view and run mock interviews — this
+// is part of the resume-verification workflow, not an admin-only function.
+router.use(requireStaffAuth)
 
 router.get('/', listMockInterviews)
 router.post('/', scheduleMockInterview)

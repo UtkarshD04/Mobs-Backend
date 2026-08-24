@@ -17,6 +17,10 @@ const resumeSchema = new Schema(
     reviewerRole: { type: String, default: '' },
     score: { type: Number, default: null },
     note: { type: String, default: '' },
+
+    assignedTo: { type: Schema.Types.ObjectId, ref: 'StaffUser', default: null, index: true },
+    assignedOn: { type: Date, default: null },
+    assignedBy: { type: Schema.Types.ObjectId, ref: 'StaffUser', default: null },
   },
   { _id: false }
 )

@@ -14,17 +14,14 @@ const staffUserSchema = new Schema(
     accessLevel: { type: String, enum: ['admin', 'staff'], default: 'staff' },
     status: { type: String, enum: ['active', 'invited', 'disabled'], default: 'active' },
     lastActiveAt: { type: Date, default: null },
-<<<<<<< Updated upstream
     resetPasswordToken: { type: String, default: null, select: false },
     resetPasswordExpires: { type: Date, default: null, select: false },
-=======
 
     pushTokens: { type: [String], default: [] },
     webPushSubscriptions: {
       type: [{ endpoint: String, keys: { p256dh: String, auth: String } }],
       default: [],
     },
->>>>>>> Stashed changes
   },
   { timestamps: true }
 )
