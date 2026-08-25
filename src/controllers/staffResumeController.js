@@ -3,10 +3,20 @@ import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Employee from '../models/Employee.js'
 import StaffUser from '../models/StaffUser.js'
+import StaffNotification from '../models/StaffNotification.js'
+import { sendPush } from '../utils/push.js'
+
+const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 
 export const listResumeQueue = asyncHandler(async (req, res) => {
-  const { status, search } = req.query
+  const { status, search, assignedTo } = req.query
   const query = {}
+
+  if (req.staff.accessLevel === 'admin') {
+    if (assignedTo) query['resume.assignedTo'] = assignedTo === 'unassigned' ? null : assignedTo
+  } else {
+    query['resume.assignedTo'] = req.staff._id
+  }
 
   if (status && status !== 'all') query['resume.status'] = status
   if (search) {
@@ -17,13 +27,54 @@ export const listResumeQueue = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Employee, query, paginationParams(req), {
     sort: { 'resume.uploadedOn': -1 },
     select: '-passwordHash',
-    populate: 'resume.assignedTo',
+    populate: ['resume.assignedTo'],
   })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
 })
 
-export const assignResume = asyncHandler(async (req, res) => {
+export const stats = asyncHandler(async (req, res) => {
+  const scope = req.staff.accessLevel === 'admin' ? { 'resume.status': { $ne: 'none' } } : { 'resume.assignedTo': req.staff._id }
+
+  const byStatus = await Employee.aggregate([{ $match: scope }, { $group: { _id: '$resume.status', count: { $sum: 1 } } }])
+  const counts = STATUSES.reduce((acc, s) => ({ ...acc, [s]: 0 }), { total: 0 })
+  for (const row of byStatus) {
+    if (!STATUSES.includes(row._id)) continue
+    counts[row._id] = row.count
+    counts.total += row.count
+  }
+
+  if (req.staff.accessLevel !== 'admin') return res.json(counts)
+
+  const perStaff = await Employee.aggregate([
+    { $match: { 'resume.assignedTo': { $ne: null } } },
+    { $group: { _id: { staff: '$resume.assignedTo', status: '$resume.status' }, count: { $sum: 1 } } },
+  ])
+  const byStaffMap = new Map()
+  for (const row of perStaff) {
+    const key = row._id.staff.toString()
+    if (!byStaffMap.has(key)) byStaffMap.set(key, STATUSES.reduce((acc, s) => ({ ...acc, [s]: 0 }), { staffId: key, total: 0 }))
+    const entry = byStaffMap.get(key)
+    if (STATUSES.includes(row._id.status)) entry[row._id.status] = row.count
+    entry.total += row.count
+  }
+  const staffDocs = await StaffUser.find({ _id: { $in: [...byStaffMap.keys()] } }).select('name email')
+  const staffLookup = new Map(staffDocs.map((s) => [s._id.toString(), s]))
+  const perStaffBreakdown = [...byStaffMap.values()].map((entry) => ({
+    ...entry,
+    name: staffLookup.get(entry.staffId)?.name ?? 'Unknown',
+    email: staffLookup.get(entry.staffId)?.email ?? '',
+  }))
+
+  res.json({ ...counts, unassigned: counts.total - perStaffBreakdown.reduce((sum, s) => sum + s.total, 0), perStaff: perStaffBreakdown })
+})
+
+async function notifyAssignment(staff, body) {
+  const notification = await StaffNotification.create({ staff: staff._id, category: 'resumes', title: 'Resume assigned to you', body })
+  await sendPush(staff, { title: notification.title, body: notification.body })
+}
+
+export const assign = asyncHandler(async (req, res) => {
   const { staffId } = req.body ?? {}
   if (!staffId) return res.status(400).json({ message: 'staffId is required' })
 
@@ -32,19 +83,21 @@ export const assignResume = asyncHandler(async (req, res) => {
 
   const employee = await Employee.findById(req.params.employeeId)
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
-  if (!employee.resume?.file) return res.status(400).json({ message: 'This employee has not uploaded a resume yet' })
+  if (employee.resume.status === 'none') return res.status(400).json({ message: 'This candidate has not uploaded a resume yet' })
 
   employee.resume.assignedTo = staff._id
   employee.resume.assignedOn = new Date()
+  employee.resume.assignedBy = req.staff._id
   await employee.save()
   await employee.populate('resume.assignedTo')
 
   await logStaffActivity(`${req.staff.name} assigned ${employee.name}'s resume to ${staff.name}`, 'navy')
+  await notifyAssignment(staff, `${employee.name}'s resume was assigned to you by ${req.staff.name}.`)
 
   res.json(employee.resume)
 })
 
-export const bulkAssignResumes = asyncHandler(async (req, res) => {
+export const bulkAssign = asyncHandler(async (req, res) => {
   const { employeeIds, staffId } = req.body ?? {}
   if (!Array.isArray(employeeIds) || !employeeIds.length) return res.status(400).json({ message: 'employeeIds must be a non-empty array' })
   if (!staffId) return res.status(400).json({ message: 'staffId is required' })
@@ -54,10 +107,11 @@ export const bulkAssignResumes = asyncHandler(async (req, res) => {
 
   const result = await Employee.updateMany(
     { _id: { $in: employeeIds } },
-    { $set: { 'resume.assignedTo': staff._id, 'resume.assignedOn': new Date() } }
+    { $set: { 'resume.assignedTo': staff._id, 'resume.assignedOn': new Date(), 'resume.assignedBy': req.staff._id } }
   )
 
   await logStaffActivity(`${req.staff.name} assigned ${result.modifiedCount} resume(s) to ${staff.name}`, 'navy')
+  await notifyAssignment(staff, `${result.modifiedCount} resume(s) were assigned to you by ${req.staff.name}.`)
 
   res.json({ modifiedCount: result.modifiedCount })
 })
@@ -71,6 +125,11 @@ export const reviewResume = asyncHandler(async (req, res) => {
   const employee = await Employee.findById(req.params.employeeId)
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
   if (employee.resume.status === 'none') return res.status(400).json({ message: 'This employee has not uploaded a resume yet' })
+
+  const isOwner = employee.resume.assignedTo && employee.resume.assignedTo.equals(req.staff._id)
+  if (req.staff.accessLevel !== 'admin' && !isOwner) {
+    return res.status(403).json({ message: 'This resume is not assigned to you' })
+  }
 
   employee.resume.status = decision
   employee.resume.score = score ?? employee.resume.score

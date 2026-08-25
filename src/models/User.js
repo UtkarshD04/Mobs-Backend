@@ -15,6 +15,12 @@ const userSchema = new Schema(
     lastActiveAt: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null, select: false },
     resetPasswordExpires: { type: Date, default: null, select: false },
+
+    pushTokens: { type: [String], default: [] },
+    webPushSubscriptions: {
+      type: [{ endpoint: String, keys: { p256dh: String, auth: String } }],
+      default: [],
+    },
   },
   { timestamps: true }
 )

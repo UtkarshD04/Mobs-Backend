@@ -1,10 +1,10 @@
 import { Router } from 'express'
-import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
-import { listNotifications, markAsRead, markAllRead, sendTestPush } from '../controllers/employeeNotificationController.js'
+import { requireStaffAuth } from '../middleware/staffAuth.js'
+import { listNotifications, markAsRead, markAllRead, sendTestPush } from '../controllers/staffNotificationController.js'
 
 const router = Router()
 
-router.use(requireEmployeeAuth)
+router.use(requireStaffAuth)
 
 router.get('/', listNotifications)
 router.post('/test-push', sendTestPush)

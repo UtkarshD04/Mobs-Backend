@@ -7,7 +7,9 @@ export async function connectDB(uri) {
   mongoose.connection.on('reconnected', () => logger.info('MongoDB reconnected'))
 
   await mongoose.connect(uri, {
-    maxPoolSize: 20,
+    // Kept modest because each PM2 cluster worker opens its own pool —
+    // total connections to Atlas is roughly (worker count * maxPoolSize).
+    maxPoolSize: 10,
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
   })

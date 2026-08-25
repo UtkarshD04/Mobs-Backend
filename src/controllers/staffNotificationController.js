@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
-import Notification from '../models/Notification.js'
+import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
 
 function toNotification(n) {
@@ -15,27 +15,27 @@ function toNotification(n) {
 }
 
 export const listNotifications = asyncHandler(async (req, res) => {
-  const notifications = await Notification.find({ company: req.company._id }).sort({ createdAt: -1 })
+  const notifications = await StaffNotification.find({ staff: req.staff._id }).sort({ createdAt: -1 })
   res.json(notifications.map(toNotification))
 })
 
 export const markAsRead = asyncHandler(async (req, res) => {
-  await Notification.updateOne({ _id: req.params.id, company: req.company._id }, { unread: false })
+  await StaffNotification.updateOne({ _id: req.params.id, staff: req.staff._id }, { unread: false })
   res.json({ success: true })
 })
 
 export const markAllRead = asyncHandler(async (req, res) => {
-  await Notification.updateMany({ company: req.company._id }, { unread: false })
+  await StaffNotification.updateMany({ staff: req.staff._id }, { unread: false })
   res.json({ success: true })
 })
 
 export const sendTestPush = asyncHandler(async (req, res) => {
-  const notification = await Notification.create({
-    company: req.company._id,
+  const notification = await StaffNotification.create({
+    staff: req.staff._id,
     category: 'system',
     title: 'Test notification',
-    body: `Hey ${req.user.name}, push notifications are working.`,
+    body: `Hey ${req.staff.name}, push notifications are working.`,
   })
-  await sendPush(req.user, { title: notification.title, body: notification.body })
+  await sendPush(req.staff, { title: notification.title, body: notification.body })
   res.status(201).json(toNotification(notification))
 })

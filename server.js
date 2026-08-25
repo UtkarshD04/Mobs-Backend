@@ -24,10 +24,18 @@ async function shutdown(signal) {
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
 
+// Every route handler is wrapped in asyncHandler (Promise.resolve(fn()).catch(next)),
+// so a rejection reaching here means it came from outside the request lifecycle
+// (a timer, a stray callback, a third-party lib). Log it and keep serving other
+// users instead of taking the whole process down for one stray bug.
 process.on('unhandledRejection', (err) => {
-  logger.error({ err }, 'Unhandled promise rejection — exiting')
-  process.exit(1)
+  logger.error({ err }, 'Unhandled promise rejection')
 })
+
+// An uncaught synchronous exception can leave the process in an undefined
+// state, so this one still exits — but under PM2 (see ecosystem.config.cjs)
+// that's a sub-second auto-restart, and cluster mode means the other workers
+// keep serving requests while this one recovers.
 process.on('uncaughtException', (err) => {
   logger.error({ err }, 'Uncaught exception — exiting')
   process.exit(1)

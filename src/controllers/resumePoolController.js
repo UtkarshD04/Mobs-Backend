@@ -3,6 +3,8 @@ import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Resume from '../models/Resume.js'
 import StaffUser from '../models/StaffUser.js'
+import StaffNotification from '../models/StaffNotification.js'
+import { sendPush } from '../utils/push.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 
@@ -82,6 +84,11 @@ export const stats = asyncHandler(async (req, res) => {
   res.json({ ...counts, unassigned: counts.total - perStaffBreakdown.reduce((sum, s) => sum + s.total, 0), perStaff: perStaffBreakdown })
 })
 
+async function notifyAssignment(staff, body) {
+  const notification = await StaffNotification.create({ staff: staff._id, category: 'resume-pool', title: 'Resume assigned to you', body })
+  await sendPush(staff, { title: notification.title, body: notification.body })
+}
+
 export const assign = asyncHandler(async (req, res) => {
   const { staffId } = req.body ?? {}
   if (!staffId) return res.status(400).json({ message: 'staffId is required' })
@@ -98,6 +105,7 @@ export const assign = asyncHandler(async (req, res) => {
   await resume.save()
 
   await logStaffActivity(`${req.staff.name} assigned a resume to ${staff.name}`, 'navy')
+  await notifyAssignment(staff, `A resume was assigned to you by ${req.staff.name}.`)
 
   res.json(resume)
 })
@@ -116,6 +124,7 @@ export const bulkAssign = asyncHandler(async (req, res) => {
   )
 
   await logStaffActivity(`${req.staff.name} assigned ${result.modifiedCount} resume(s) to ${staff.name}`, 'navy')
+  await notifyAssignment(staff, `${result.modifiedCount} resume(s) were assigned to you by ${req.staff.name}.`)
 
   res.json({ modifiedCount: result.modifiedCount })
 })

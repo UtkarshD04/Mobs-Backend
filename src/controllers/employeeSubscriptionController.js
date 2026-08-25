@@ -17,11 +17,13 @@ export const getSubscription = asyncHandler(async (req, res) => {
 // the rest of the flow can still be exercised end to end. The `mock: true`
 // flag tells the client to skip the Checkout widget and call the
 // mock-confirm endpoint directly instead of the signature-verified one.
+// Never allowed in production — a missing key there should fail loudly
+// (like the job-fee flow does) instead of silently waving payments through.
 function buildOrder(amount, receipt) {
-  if (!isRazorpayConfigured()) {
+  if (!isRazorpayConfigured() && process.env.NODE_ENV !== 'production') {
     return { orderId: `mock_${receipt}`, amount: Math.round(amount * 100), currency: 'INR', mock: true }
   }
-  return null // caller creates the real order
+  return null // caller creates the real order (or getRazorpayClient() throws 503 if unconfigured)
 }
 
 // Creates a Razorpay order for the fixed, server-side subscription fee.
@@ -200,8 +202,11 @@ export const verifySubscriptionPayment = asyncHandler(async (req, res) => {
 // Dev-only shortcut: confirms a mock order (created because Razorpay wasn't
 // configured) without any signature or Razorpay API round-trip. Refuses to
 // touch anything that isn't actually flagged isMock, so it can't be used to
-// wave through a real payment.
+// wave through a real payment. Hard-blocked in production even if a stray
+// isMock record somehow exists there.
 async function confirmMock(orderId, employeeFilter) {
+  if (process.env.NODE_ENV === 'production') return { error: 503, message: 'Mock payments are disabled in production' }
+
   const payment = await Payment.findOne({ razorpayOrderId: orderId, purpose: 'employee_subscription', isMock: true, ...employeeFilter })
   if (!payment) return { error: 404, message: 'Mock order not found' }
   if (payment.status === 'created') {
