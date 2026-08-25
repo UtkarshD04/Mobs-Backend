@@ -17,6 +17,11 @@ const resumeSchema = new Schema(
     reviewerRole: { type: String, default: '' },
     score: { type: Number, default: null },
     note: { type: String, default: '' },
+    // Which staff member (the "HR" this resume was handed off to) is
+    // responsible for actioning it. Set via the Operations portal's assign
+    // action — separate from `reviewer`, which records who already decided.
+    assignedTo: { type: Schema.Types.ObjectId, ref: 'StaffUser', default: null },
+    assignedOn: { type: Date, default: null },
   },
   { _id: false }
 )
