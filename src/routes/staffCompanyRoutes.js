@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
 import {
   listCompanies,
+  createCompany,
   getCompany,
   verifyCompany,
   rejectCompany,
@@ -15,6 +16,7 @@ const router = Router()
 router.use(requireStaffAuth, requireAdmin)
 
 router.get('/', listCompanies)
+router.post('/', createCompany)
 router.get('/:id', getCompany)
 router.patch('/:id/verify', verifyCompany)
 router.patch('/:id/reject', rejectCompany)

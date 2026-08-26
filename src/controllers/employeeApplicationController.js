@@ -25,6 +25,9 @@ export const applyToJob = asyncHandler(async (req, res) => {
   if (!jobId) return res.status(400).json({ message: 'jobId is required' })
 
   const employee = req.employee
+  if (employee.subscription?.status !== 'paid') {
+    return res.status(403).json({ message: 'Activate your placement support (₹299, one-time) before applying to jobs' })
+  }
   if (employee.resume?.status !== 'verified') {
     return res.status(403).json({ message: 'Your resume must be verified before you can apply' })
   }

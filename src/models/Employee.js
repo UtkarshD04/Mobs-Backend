@@ -52,10 +52,23 @@ const skillTrackSchema = new Schema(
   { _id: false }
 )
 
+const shortlistSchema = new Schema(
+  {
+    trustScore: { type: Number, default: null },
+    scoredOn: { type: Date, default: null },
+    scoredBy: { type: String, default: '' },
+    note: { type: String, default: '' },
+    status: { type: String, enum: ['none', 'shortlisted', 'sent_to_ops'], default: 'none' },
+    sentToOpsOn: { type: Date, default: null },
+    sentToOpsBy: { type: Schema.Types.ObjectId, ref: 'StaffUser', default: null },
+  },
+  { _id: false }
+)
+
 const subscriptionSchema = new Schema(
   {
     status: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
-    amount: { type: Number, default: 99 },
+    amount: { type: Number, default: 299 },
     paidOn: { type: Date, default: null },
   },
   { _id: false }
@@ -109,6 +122,7 @@ const employeeSchema = new Schema(
     resumeHistory: { type: [resumeHistorySchema], default: [] },
     skillTrack: { type: skillTrackSchema, default: () => ({}) },
     subscription: { type: subscriptionSchema, default: () => ({}) },
+    shortlist: { type: shortlistSchema, default: () => ({}) },
   },
   { timestamps: true }
 )

@@ -1,3 +1,5 @@
+import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
@@ -17,6 +19,39 @@ export const listCompanies = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Company, query, paginationParams(req), { sort: { createdAt: -1 } })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
+})
+
+// Manually onboards a company, same temp-password pattern as
+// createTeammate/createEmployee — the rest of the company profile (industry,
+// size, GSTIN, etc.) gets filled in later via the Company Profile page,
+// same as a self-serve signup only requires companyName up front.
+export const createCompany = asyncHandler(async (req, res) => {
+  const { companyName, adminName, adminEmail } = req.body ?? {}
+  if (!companyName || !adminName || !adminEmail) {
+    return res.status(400).json({ message: 'companyName, adminName and adminEmail are required' })
+  }
+
+  const normalizedEmail = adminEmail.toLowerCase().trim()
+  const existing = await User.findOne({ email: normalizedEmail })
+  if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+
+  const company = await Company.create({ name: companyName.trim() })
+
+  const tempPassword = crypto.randomBytes(9).toString('base64url')
+  const passwordHash = await bcrypt.hash(tempPassword, 10)
+  const user = await User.create({
+    company: company._id,
+    name: adminName.trim(),
+    email: normalizedEmail,
+    role: 'Admin',
+    passwordHash,
+    status: 'active',
+  })
+
+  await logStaffActivity(`${req.staff.name} onboarded ${company.name} with ${user.name} as Admin`, 'navy')
+
+  user.passwordHash = undefined
+  res.status(201).json({ company, user, tempPassword })
 })
 
 export const getCompany = asyncHandler(async (req, res) => {

@@ -22,7 +22,19 @@ app.set('trust proxy', 1)
 app.use(helmet())
 app.use(compression())
 app.use(cors({ origin: env.corsOrigin }))
-app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/health' } }))
+// Default pino-http serializers dump the full req/res (headers included, so
+// the Authorization bearer token would land in the terminal on every call) —
+// pared down to just what's useful for a dev console.
+app.use(
+  pinoHttp({
+    logger,
+    autoLogging: { ignore: (req) => req.url === '/health' },
+    serializers: {
+      req: (req) => ({ method: req.method, url: req.url }),
+      res: (res) => ({ statusCode: res.statusCode }),
+    },
+  })
+)
 
 // Razorpay's webhook signature is computed over the exact raw request body,
 // so this route must read it unparsed — it has to be wired up before the

@@ -4,7 +4,7 @@ import { applyIdTransform } from '../utils/toJSON.js'
 const staffNotificationSchema = new Schema(
   {
     staff: { type: Schema.Types.ObjectId, ref: 'StaffUser', required: true, index: true },
-    category: { type: String, enum: ['resumes', 'resume-pool', 'companies', 'payments', 'batches', 'interviews', 'system'], required: true },
+    category: { type: String, enum: ['resumes', 'resume-pool', 'companies', 'payments', 'batches', 'interviews', 'requirements', 'system'], required: true },
     title: { type: String, required: true },
     body: { type: String, required: true },
     unread: { type: Boolean, default: true },

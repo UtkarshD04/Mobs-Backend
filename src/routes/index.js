@@ -24,6 +24,7 @@ import employeeInterviewRoutes from './employeeInterviewRoutes.js'
 import employeeNotificationRoutes from './employeeNotificationRoutes.js'
 import employeePushRoutes from './employeePushRoutes.js'
 import employeeMessageRoutes from './employeeMessageRoutes.js'
+import employeeSupportRoutes from './employeeSupportRoutes.js'
 import staffAuthRoutes from './staffAuthRoutes.js'
 import staffCompanyRoutes from './staffCompanyRoutes.js'
 import staffJobRoutes from './staffJobRoutes.js'
@@ -32,12 +33,16 @@ import staffApplicationRoutes from './staffApplicationRoutes.js'
 import staffBatchRoutes from './staffBatchRoutes.js'
 import staffMockInterviewRoutes from './staffMockInterviewRoutes.js'
 import staffEmployeeRoutes from './staffEmployeeRoutes.js'
+import staffUserRoutes from './staffUserRoutes.js'
 import staffPaymentRoutes from './staffPaymentRoutes.js'
+import staffCouponRoutes from './staffCouponRoutes.js'
 import staffTeamRoutes from './staffTeamRoutes.js'
 import staffDashboardRoutes from './staffDashboardRoutes.js'
+import staffShortlistRoutes from './staffShortlistRoutes.js'
 import resumePoolRoutes from './resumePoolRoutes.js'
 import staffPushRoutes from './staffPushRoutes.js'
 import staffNotificationRoutes from './staffNotificationRoutes.js'
+import staffSupportRoutes from './staffSupportRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 
 const employerRoutes = Router()
@@ -67,6 +72,7 @@ employeeRoutes.use('/interviews', employeeInterviewRoutes)
 employeeRoutes.use('/notifications', employeeNotificationRoutes)
 employeeRoutes.use('/push', employeePushRoutes)
 employeeRoutes.use('/messages', employeeMessageRoutes)
+employeeRoutes.use('/support', employeeSupportRoutes)
 
 const staffRoutes = Router()
 staffRoutes.use('/auth', staffAuthRoutes)
@@ -77,12 +83,16 @@ staffRoutes.use('/applications', staffApplicationRoutes)
 staffRoutes.use('/batches', staffBatchRoutes)
 staffRoutes.use('/mock-interviews', staffMockInterviewRoutes)
 staffRoutes.use('/employees', staffEmployeeRoutes)
+staffRoutes.use('/users', staffUserRoutes)
 staffRoutes.use('/payments', staffPaymentRoutes)
+staffRoutes.use('/coupons', staffCouponRoutes)
 staffRoutes.use('/team', staffTeamRoutes)
 staffRoutes.use('/dashboard', staffDashboardRoutes)
+staffRoutes.use('/shortlist', staffShortlistRoutes)
 staffRoutes.use('/resume-pool', resumePoolRoutes)
 staffRoutes.use('/push', staffPushRoutes)
 staffRoutes.use('/notifications', staffNotificationRoutes)
+staffRoutes.use('/support', staffSupportRoutes)
 
 const router = Router()
 router.use('/employer', employerRoutes)

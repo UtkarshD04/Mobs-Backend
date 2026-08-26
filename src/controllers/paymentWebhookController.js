@@ -6,6 +6,7 @@ import { logger } from '../config/logger.js'
 import Employee from '../models/Employee.js'
 import Job from '../models/Job.js'
 import Payment from '../models/Payment.js'
+import { notifyEmployee } from '../utils/notifyEmployee.js'
 
 // Asynchronous source of truth: Razorpay calls this directly, independent of
 // whether the customer's browser stayed on the page long enough for the
@@ -39,6 +40,11 @@ export const razorpayWebhook = asyncHandler(async (req, res) => {
         if (employee && employee.subscription.status !== 'paid') {
           employee.subscription = { status: 'paid', amount: payment.amount, paidOn: payment.paidAt }
           await employee.save()
+          await notifyEmployee(employee, {
+            category: 'system',
+            title: 'Payment confirmed',
+            body: `Your payment of ₹${payment.amount} has been received — your Mzobs subscription is now active.`,
+          })
         }
       } else if (payment.purpose === 'employer_job_fee') {
         const job = await Job.findById(payment.job)

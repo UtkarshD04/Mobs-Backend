@@ -50,6 +50,9 @@ export const login = asyncHandler(async (req, res) => {
   const matches = await bcrypt.compare(password, user.passwordHash)
   if (!matches) return res.status(401).json({ message: 'Invalid email or password' })
 
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
+  }
   if (user.company?.blocked) {
     return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
   }

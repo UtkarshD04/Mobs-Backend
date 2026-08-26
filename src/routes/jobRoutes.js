@@ -9,6 +9,7 @@ import {
   setJobStatus,
   createJobPaymentOrder,
   verifyJobPayment,
+  confirmMockJobPayment,
   duplicateJob,
   deleteJob,
 } from '../controllers/jobController.js'
@@ -24,6 +25,7 @@ router.put('/:id', updateJob)
 router.patch('/:id/status', setJobStatus)
 router.post('/:id/pay/order', paymentLimiter, createJobPaymentOrder)
 router.post('/:id/pay/verify', paymentLimiter, verifyJobPayment)
+router.post('/:id/pay/mock-confirm', paymentLimiter, confirmMockJobPayment)
 router.post('/:id/duplicate', duplicateJob)
 router.delete('/:id', deleteJob)
 

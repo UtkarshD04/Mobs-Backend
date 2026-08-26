@@ -1,6 +1,6 @@
 import { Router } from 'express'
-import { requireStaffAuth } from '../middleware/staffAuth.js'
-import { listMockInterviews, scheduleMockInterview, completeMockInterview, markNoShow } from '../controllers/staffMockInterviewController.js'
+import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
+import { listMockInterviews, scheduleMockInterview, completeMockInterview, markNoShow, mockInterviewStats } from '../controllers/staffMockInterviewController.js'
 
 const router = Router()
 
@@ -8,6 +8,9 @@ const router = Router()
 // is part of the resume-verification workflow, not an admin-only function.
 router.use(requireStaffAuth)
 
+// Literal '/stats' must be registered before the '/:id/...' param routes
+// below, otherwise Express would try to match it as id="stats".
+router.get('/stats', requireAdmin, mockInterviewStats)
 router.get('/', listMockInterviews)
 router.post('/', scheduleMockInterview)
 router.patch('/:id/complete', completeMockInterview)

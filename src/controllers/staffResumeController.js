@@ -5,8 +5,15 @@ import Employee from '../models/Employee.js'
 import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
+import { notifyEmployee } from '../utils/notifyEmployee.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
+
+const RESUME_DECISION_MESSAGES = {
+  verified: 'Your resume has been verified by the Mzobs team.',
+  changes: 'The Mzobs team requested changes to your resume — check the review notes and re-upload.',
+  rejected: 'Your resume was not approved this time. Check the review notes for details.',
+}
 
 export const listResumeQueue = asyncHandler(async (req, res) => {
   const { status, search, assignedTo } = req.query
@@ -140,6 +147,7 @@ export const reviewResume = asyncHandler(async (req, res) => {
 
   await employee.save()
   await logStaffActivity(`${employee.name}'s resume marked "${decision}" by ${req.staff.name}`, decision === 'verified' ? 'green' : 'gold')
+  await notifyEmployee(employee, { category: 'resume', title: 'Resume review update', body: RESUME_DECISION_MESSAGES[decision] })
 
   res.json(employee.resume)
 })

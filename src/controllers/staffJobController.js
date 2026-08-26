@@ -3,9 +3,12 @@ import { feeFor, resumesFor } from '../utils/jobPricing.js'
 import { logActivity } from '../utils/activityLog.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
+import { sendPush } from '../utils/push.js'
 import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Batch from '../models/Batch.js'
+import StaffUser from '../models/StaffUser.js'
+import StaffNotification from '../models/StaffNotification.js'
 
 export const listJobs = asyncHandler(async (req, res) => {
   const { status, search } = req.query
@@ -104,4 +107,26 @@ export const recordJobPayment = asyncHandler(async (req, res) => {
   await logStaffActivity(`Payment recorded for "${job.title}" — sourcing started`, 'green')
 
   res.json({ job, batch })
+})
+
+// Operations broadcasts an open requirement to every HR so they know to
+// check their shortlisted candidates for a fit.
+export const notifyHr = asyncHandler(async (req, res) => {
+  const job = await Job.findById(req.params.id).populate('company', 'name')
+  if (!job) return res.status(404).json({ message: 'Job not found' })
+  if (job.status !== 'sourcing') return res.status(400).json({ message: 'Only requirements that are sourcing can notify HR' })
+
+  const hrStaff = await StaffUser.find({ accessLevel: 'staff', status: 'active' })
+  const title = `${job.company?.name ?? 'An employer'} needs candidates for "${job.title}" (${job.vacancies} opening${job.vacancies === 1 ? '' : 's'}).`
+
+  await Promise.all(
+    hrStaff.map(async (staff) => {
+      const notification = await StaffNotification.create({ staff: staff._id, category: 'requirements', title: 'Candidates needed', body: title })
+      await sendPush(staff, { title: notification.title, body: notification.body })
+    })
+  )
+
+  await logStaffActivity(`${req.staff.name} requested candidates from HR for "${job.title}"`, 'gold')
+
+  res.json({ notified: hrStaff.length })
 })

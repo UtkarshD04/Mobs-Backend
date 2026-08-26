@@ -11,7 +11,7 @@ const userSchema = new Schema(
     // credentials (no invite-accept flow yet) — login rejects a missing hash.
     passwordHash: { type: String, required: false, select: false },
     role: { type: String, enum: ['Admin', 'Hiring Manager', 'Recruiter', 'Interviewer'], required: true },
-    status: { type: String, enum: ['active', 'invited'], default: 'active' },
+    status: { type: String, enum: ['active', 'invited', 'disabled'], default: 'active' },
     lastActiveAt: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null, select: false },
     resetPasswordExpires: { type: Date, default: null, select: false },

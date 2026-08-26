@@ -7,11 +7,13 @@ import Application from '../models/Application.js'
 import MockInterview from '../models/MockInterview.js'
 import Invoice from '../models/Invoice.js'
 import StaffActivity from '../models/StaffActivity.js'
+import StaffUser from '../models/StaffUser.js'
+import User from '../models/User.js'
 
 const sum = (rows, field) => rows.reduce((total, r) => total + (r[field] ?? 0), 0)
 
 export const getDashboard = asyncHandler(async (req, res) => {
-  const [employees, companies, jobs, applications, mockInterviews, invoices, activityRows] = await Promise.all([
+  const [employees, companies, jobs, applications, mockInterviews, invoices, activityRows, staffCount, employerCount] = await Promise.all([
     Employee.find({}).select('name resume subscription skillTrack'),
     Company.find({}).select('name verificationStatus'),
     Job.find({}).select('status'),
@@ -19,18 +21,24 @@ export const getDashboard = asyncHandler(async (req, res) => {
     MockInterview.find({}).select('status when'),
     Invoice.find({}).select('amount status'),
     StaffActivity.find({}).sort({ createdAt: -1 }).limit(8),
+    StaffUser.countDocuments({}),
+    User.countDocuments({}),
   ])
 
   const kpis = {
     candidates: employees.length,
     resumeQueue: employees.filter((e) => e.resume?.status === 'pending').length,
     mockQueue: mockInterviews.filter((m) => m.status === 'scheduled').length,
+    companies: companies.length,
     companyQueue: companies.filter((c) => c.verificationStatus === 'pending').length,
     openings: sum(
       jobs.filter((j) => !['draft', 'closed', 'archived'].includes(j.status)),
       'vacancies'
     ),
     applications: applications.length,
+    subscribedCandidates: employees.filter((e) => e.subscription?.status === 'paid').length,
+    staff: staffCount,
+    employers: employerCount,
   }
 
   const revenueCollected = sum(

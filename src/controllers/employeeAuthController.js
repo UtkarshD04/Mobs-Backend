@@ -42,6 +42,10 @@ export const login = asyncHandler(async (req, res) => {
   const matches = await bcrypt.compare(password, employee.passwordHash)
   if (!matches) return res.status(401).json({ message: 'Invalid email or password' })
 
+  if (employee.status === 'suspended') {
+    return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+  }
+
   employee.lastActiveAt = new Date()
   await employee.save()
 

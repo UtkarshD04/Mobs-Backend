@@ -4,7 +4,7 @@ import { logActivity } from '../utils/activityLog.js'
 import { creditJobPayment } from '../utils/creditJobPayment.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
-import { getRazorpayClient } from '../config/razorpay.js'
+import { getRazorpayClient, isRazorpayConfigured } from '../config/razorpay.js'
 import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
 import Job from '../models/Job.js'
@@ -137,6 +137,18 @@ export const setJobStatus = asyncHandler(async (req, res) => {
   res.json(job)
 })
 
+// When Razorpay isn't configured (no keys in env — the case on a fresh dev
+// checkout), the order is created locally instead of on Razorpay's servers so
+// the rest of the flow can still be exercised end to end. Mirrors buildOrder
+// in employeeSubscriptionController.js. Never allowed in production — a
+// missing key there should fail loudly instead of silently waving payments through.
+function buildMockOrder(amount, receipt) {
+  if (!isRazorpayConfigured() && process.env.NODE_ENV !== 'production') {
+    return { orderId: `mock_${receipt}`, amount: Math.round(amount * 100), currency: 'INR', mock: true }
+  }
+  return null
+}
+
 // Creates a Razorpay order for the job's sourcing fee. The amount is always
 // job.feeTotal as computed server-side by feeFor() — the client only ever
 // gets back an order id to hand to Checkout, never a say in the amount.
@@ -147,28 +159,35 @@ export const createJobPaymentOrder = asyncHandler(async (req, res) => {
   if (!job.feeTotal || job.feeTotal <= 0) return res.status(400).json({ message: 'Nothing to pay for this requirement' })
 
   const receipt = `job_${job._id}_${Date.now()}`
-  const order = await getRazorpayClient().orders.create({
-    amount: Math.round(job.feeTotal * 100), // paise
-    currency: 'INR',
-    receipt,
-    notes: { purpose: 'employer_job_fee', jobId: job._id.toString(), companyId: req.company._id.toString() },
-  })
+
+  let order = buildMockOrder(job.feeTotal, receipt)
+  if (!order) {
+    const rzpOrder = await getRazorpayClient().orders.create({
+      amount: Math.round(job.feeTotal * 100), // paise
+      currency: 'INR',
+      receipt,
+      notes: { purpose: 'employer_job_fee', jobId: job._id.toString(), companyId: req.company._id.toString() },
+    })
+    order = { orderId: rzpOrder.id, amount: rzpOrder.amount, currency: rzpOrder.currency, mock: false }
+  }
 
   await Payment.create({
     purpose: 'employer_job_fee',
     company: req.company._id,
     job: job._id,
-    razorpayOrderId: order.id,
+    razorpayOrderId: order.orderId,
     amount: job.feeTotal,
-    currency: 'INR',
+    currency: order.currency,
     status: 'created',
     receipt,
+    isMock: order.mock,
   })
 
   res.status(201).json({
-    orderId: order.id,
+    orderId: order.orderId,
     amount: order.amount,
     currency: order.currency,
+    mock: order.mock,
     keyId: env.razorpayKeyId,
     name: 'Mzobs',
     description: `${job.title} — sourcing fee`,
@@ -215,6 +234,43 @@ export const verifyJobPayment = asyncHandler(async (req, res) => {
   payment.status = 'paid'
   payment.paidAt = new Date()
   await payment.save()
+
+  await creditJobPayment(job, payment)
+
+  res.json(job)
+})
+
+// Dev-only shortcut: confirms a mock order (created because Razorpay wasn't
+// configured) without any signature or Razorpay API round-trip. Refuses to
+// touch anything that isn't actually flagged isMock, so it can't be used to
+// wave through a real payment. Hard-blocked in production even if a stray
+// isMock record somehow exists there.
+export const confirmMockJobPayment = asyncHandler(async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(503).json({ message: 'Mock payments are disabled in production' })
+  }
+
+  const { orderId } = req.body ?? {}
+  if (!orderId) return res.status(400).json({ message: 'orderId is required' })
+
+  const job = await findScopedJob(req)
+  if (!job) return res.status(404).json({ message: 'Job not found' })
+
+  const payment = await Payment.findOne({
+    razorpayOrderId: orderId,
+    purpose: 'employer_job_fee',
+    company: req.company._id,
+    job: job._id,
+    isMock: true,
+  })
+  if (!payment) return res.status(404).json({ message: 'Mock order not found' })
+
+  if (payment.status === 'created') {
+    payment.status = 'paid'
+    payment.razorpayPaymentId = `mock_payment_${Date.now()}`
+    payment.paidAt = new Date()
+    await payment.save()
+  }
 
   await creditJobPayment(job, payment)
 

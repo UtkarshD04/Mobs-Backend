@@ -9,9 +9,15 @@ import {
   verifyGuestSubscriptionPayment,
   confirmMockSubscriptionPayment,
   confirmGuestMockSubscriptionPayment,
+  previewCoupon,
 } from '../controllers/employeeSubscriptionController.js'
 
 const router = Router()
+
+// No auth required — used by both the signed-in account page and the
+// guest/marketing "pay first" checkout to preview a discount before an
+// order (or account) exists yet.
+router.post('/coupon/preview', paymentLimiter, previewCoupon)
 
 router.get('/', requireEmployeeAuth, getSubscription)
 router.post('/order', requireEmployeeAuth, paymentLimiter, createSubscriptionOrder)

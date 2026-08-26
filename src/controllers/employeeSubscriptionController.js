@@ -5,8 +5,41 @@ import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
+import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
 
-const DEFAULT_FEE = 99
+const DEFAULT_FEE = 299
+
+// Looks up and prices a coupon against the fixed subscription fee. Returns
+// null (no coupon requested) or `{ coupon, discountAmount, amount }` with
+// `amount` already discounted — callers just use it in place of the base fee.
+async function priceWithCoupon(baseAmount, couponCode) {
+  if (!couponCode) return null
+  const coupon = await findApplicableCoupon(couponCode, 'employee_subscription', baseAmount)
+  const discountAmount = computeDiscount(coupon, baseAmount)
+  return { coupon, discountAmount, amount: Math.round((baseAmount - discountAmount) * 100) / 100 }
+}
+
+// Previews what a coupon would knock off the fixed subscription fee, without
+// creating an order — used by both the signed-in and guest checkout so the
+// discount can show up as soon as the code is typed.
+export const previewCoupon = asyncHandler(async (req, res) => {
+  const { code } = req.body ?? {}
+  if (!code) return res.status(400).json({ message: 'Coupon code is required' })
+
+  try {
+    const priced = await priceWithCoupon(DEFAULT_FEE, code)
+    res.json({
+      valid: true,
+      code: priced.coupon.code,
+      originalAmount: DEFAULT_FEE,
+      discountAmount: priced.discountAmount,
+      finalAmount: priced.amount,
+    })
+  } catch (err) {
+    if (err instanceof CouponError) return res.status(400).json({ valid: false, message: err.message })
+    throw err
+  }
+})
 
 export const getSubscription = asyncHandler(async (req, res) => {
   res.json(req.employee.subscription)
@@ -34,7 +67,22 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: 'Subscription is already active' })
   }
 
-  const amount = employee.subscription.amount ?? DEFAULT_FEE
+  const baseAmount = employee.subscription.amount ?? DEFAULT_FEE
+  let amount = baseAmount
+  let discountAmount = 0
+  let couponCode = null
+  if (req.body?.couponCode) {
+    try {
+      const priced = await priceWithCoupon(baseAmount, req.body.couponCode)
+      amount = priced.amount
+      discountAmount = priced.discountAmount
+      couponCode = priced.coupon.code
+    } catch (err) {
+      if (err instanceof CouponError) return res.status(400).json({ message: err.message })
+      throw err
+    }
+  }
+
   const receipt = `sub_${employee._id}_${Date.now()}`
 
   let order = buildOrder(amount, receipt)
@@ -43,7 +91,7 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
       amount: Math.round(amount * 100), // paise
       currency: 'INR',
       receipt,
-      notes: { purpose: 'employee_subscription', employeeId: employee._id.toString() },
+      notes: { purpose: 'employee_subscription', employeeId: employee._id.toString(), couponCode: couponCode || undefined },
     })
     order = { orderId: rzpOrder.id, amount: rzpOrder.amount, currency: rzpOrder.currency, mock: false }
   }
@@ -53,6 +101,9 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     employee: employee._id,
     razorpayOrderId: order.orderId,
     amount,
+    originalAmount: baseAmount,
+    discountAmount,
+    couponCode,
     currency: order.currency,
     status: 'created',
     receipt,
@@ -68,6 +119,9 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     name: 'Mzobs',
     description: 'Placement Support Programme — one-time fee',
     prefill: { name: employee.name, email: employee.email, contact: employee.phone || undefined },
+    originalAmount: baseAmount,
+    discountAmount,
+    couponCode,
   })
 })
 
@@ -77,7 +131,22 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
 // created with its id next (see employeeAuthController.signup) — until then
 // it just sits on the Payment record with employee: null.
 export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
-  const amount = DEFAULT_FEE
+  const baseAmount = DEFAULT_FEE
+  let amount = baseAmount
+  let discountAmount = 0
+  let couponCode = null
+  if (req.body?.couponCode) {
+    try {
+      const priced = await priceWithCoupon(baseAmount, req.body.couponCode)
+      amount = priced.amount
+      discountAmount = priced.discountAmount
+      couponCode = priced.coupon.code
+    } catch (err) {
+      if (err instanceof CouponError) return res.status(400).json({ message: err.message })
+      throw err
+    }
+  }
+
   const receipt = `guest_sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   let order = buildOrder(amount, receipt)
@@ -86,7 +155,7 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
       amount: Math.round(amount * 100), // paise
       currency: 'INR',
       receipt,
-      notes: { purpose: 'employee_subscription_guest' },
+      notes: { purpose: 'employee_subscription_guest', couponCode: couponCode || undefined },
     })
     order = { orderId: rzpOrder.id, amount: rzpOrder.amount, currency: rzpOrder.currency, mock: false }
   }
@@ -96,6 +165,9 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
     employee: null,
     razorpayOrderId: order.orderId,
     amount,
+    originalAmount: baseAmount,
+    discountAmount,
+    couponCode,
     currency: order.currency,
     status: 'created',
     receipt,
@@ -110,6 +182,9 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
     keyId: env.razorpayKeyId,
     name: 'Mzobs',
     description: 'Placement Support Programme — one-time fee',
+    originalAmount: baseAmount,
+    discountAmount,
+    couponCode,
   })
 })
 
@@ -152,6 +227,7 @@ export const verifyGuestSubscriptionPayment = asyncHandler(async (req, res) => {
   payment.status = 'paid'
   payment.paidAt = new Date()
   await payment.save()
+  await incrementCouponUsage(payment.couponCode)
 
   res.json({ paymentOrderId: payment.razorpayOrderId })
 })
@@ -192,6 +268,7 @@ export const verifySubscriptionPayment = asyncHandler(async (req, res) => {
   payment.status = 'paid'
   payment.paidAt = new Date()
   await payment.save()
+  await incrementCouponUsage(payment.couponCode)
 
   employee.subscription = { status: 'paid', amount: payment.amount, paidOn: payment.paidAt }
   await employee.save()
@@ -214,6 +291,7 @@ async function confirmMock(orderId, employeeFilter) {
     payment.razorpayPaymentId = `mock_payment_${Date.now()}`
     payment.paidAt = new Date()
     await payment.save()
+    await incrementCouponUsage(payment.couponCode)
   }
   return { payment }
 }

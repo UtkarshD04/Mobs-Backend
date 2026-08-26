@@ -3,6 +3,15 @@ import { logActivity } from '../utils/activityLog.js'
 import { initialsOf } from '../utils/initials.js'
 import Interview from '../models/Interview.js'
 import Candidate from '../models/Candidate.js'
+import Employee from '../models/Employee.js'
+import { notifyEmployee } from '../utils/notifyEmployee.js'
+
+async function notifyCandidateEmployee(candidateId, payload) {
+  const candidate = await Candidate.findById(candidateId).select('employee')
+  if (!candidate?.employee) return
+  const employee = await Employee.findById(candidate.employee)
+  if (employee) await notifyEmployee(employee, payload)
+}
 
 export const listInterviews = asyncHandler(async (req, res) => {
   const interviews = await Interview.find({ company: req.company._id }).sort({ startsAt: 1 })
@@ -40,6 +49,16 @@ export const scheduleInterview = asyncHandler(async (req, res) => {
   }
 
   await logActivity(req.company._id, `Interview scheduled with ${candidate.name} for ${role}`, 'navy')
+  if (candidate.employee) {
+    const employee = await Employee.findById(candidate.employee)
+    if (employee) {
+      await notifyEmployee(employee, {
+        category: 'interviews',
+        title: 'Interview scheduled',
+        body: `${req.company.name} scheduled an interview with you for ${role} on ${new Date(startsAt).toLocaleString('en-IN')}.`,
+      })
+    }
+  }
 
   res.status(201).json(interview)
 })
@@ -54,6 +73,13 @@ export const rescheduleInterview = asyncHandler(async (req, res) => {
     { new: true }
   )
   if (!interview) return res.status(404).json({ message: 'Interview not found' })
+
+  await notifyCandidateEmployee(interview.candidate, {
+    category: 'interviews',
+    title: 'Interview rescheduled',
+    body: `Your interview for ${interview.role} has been rescheduled to ${new Date(startsAt).toLocaleString('en-IN')}.`,
+  })
+
   res.json(interview)
 })
 
@@ -64,6 +90,13 @@ export const cancelInterview = asyncHandler(async (req, res) => {
     { new: true }
   )
   if (!interview) return res.status(404).json({ message: 'Interview not found' })
+
+  await notifyCandidateEmployee(interview.candidate, {
+    category: 'interviews',
+    title: 'Interview cancelled',
+    body: `Your interview for ${interview.role} has been cancelled.`,
+  })
+
   res.json(interview)
 })
 
@@ -79,6 +112,11 @@ export const submitFeedback = asyncHandler(async (req, res) => {
   if (!interview) return res.status(404).json({ message: 'Interview not found' })
 
   await logActivity(req.company._id, `Interview feedback submitted for ${interview.candidateName}`, 'navy')
+  await notifyCandidateEmployee(interview.candidate, {
+    category: 'interviews',
+    title: 'Interview completed',
+    body: `Your interview for ${interview.role} has been marked complete.`,
+  })
 
   res.json(interview)
 })
