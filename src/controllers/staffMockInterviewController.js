@@ -56,6 +56,9 @@ export const scheduleMockInterview = asyncHandler(async (req, res) => {
 
   const employee = await Employee.findById(employeeId)
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
+  if (employee.resume.status !== 'verified') {
+    return res.status(400).json({ message: 'Resume must be verified before scheduling a mock interview' })
+  }
 
   const interview = await MockInterview.create({
     employee: employeeId,
@@ -154,6 +157,11 @@ export const setTrustScore = asyncHandler(async (req, res) => {
 
   const employee = await Employee.findById(req.params.employeeId)
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
+
+  const completedInterview = await MockInterview.findOne({ employee: employee._id, status: 'completed' })
+  if (!completedInterview) {
+    return res.status(400).json({ message: 'This candidate must complete a mock interview before a trust score can be given' })
+  }
 
   employee.shortlist = {
     trustScore: score,

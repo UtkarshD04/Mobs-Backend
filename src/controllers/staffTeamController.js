@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs'
-import crypto from 'crypto'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
+import { sendMail } from '../utils/mailer.js'
+import { staffCredentialsEmailHtml } from '../utils/staffWelcomeEmail.js'
+import { env } from '../config/env.js'
 import StaffUser from '../models/StaffUser.js'
 
 const ROLES = ['Operations Manager', 'Resume Verification Lead', 'Interview Panel', 'Employer Success', 'Compliance & KYC']
@@ -23,11 +25,15 @@ export const listTeam = asyncHandler(async (req, res) => {
   res.json(data)
 })
 
-// No email-invite flow yet — an admin provisions a teammate directly with a
-// generated temporary password.
+// Admin sets the password directly (no auto-generation) — still emailed to
+// the new teammate so they have it in writing (sendMail no-ops to a log
+// line if SMTP isn't configured, same graceful-degrade as password-reset mail).
 export const createTeammate = asyncHandler(async (req, res) => {
-  const { name, email, role, accessLevel } = req.body ?? {}
-  if (!name || !email || !role) return res.status(400).json({ message: 'name, email and role are required' })
+  const { name, email, password, role, accessLevel } = req.body ?? {}
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ message: 'name, email, password and role are required' })
+  }
+  if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' })
   if (!ROLES.includes(role)) return res.status(400).json({ message: 'Invalid role' })
   if (accessLevel && !['admin', 'staff'].includes(accessLevel)) {
     return res.status(400).json({ message: 'Invalid access level' })
@@ -37,8 +43,7 @@ export const createTeammate = asyncHandler(async (req, res) => {
   const existing = await StaffUser.findOne({ email: normalizedEmail })
   if (existing) return res.status(409).json({ message: 'A staff account with this email already exists' })
 
-  const tempPassword = crypto.randomBytes(9).toString('base64url')
-  const passwordHash = await bcrypt.hash(tempPassword, 10)
+  const passwordHash = await bcrypt.hash(password, 10)
 
   const staff = await StaffUser.create({
     name: name.trim(),
@@ -50,9 +55,20 @@ export const createTeammate = asyncHandler(async (req, res) => {
   })
 
   await logStaffActivity(`${req.staff.name} added ${staff.name} to the team as ${role}`, 'navy')
+  await sendMail({
+    to: staff.email,
+    subject: 'Your Mzobs staff account is ready',
+    html: staffCredentialsEmailHtml({
+      name: staff.name,
+      email: staff.email,
+      tempPassword: password,
+      loginUrl: `${env.staffFrontendUrl}/login`,
+      isNewAccount: true,
+    }),
+  })
 
   staff.passwordHash = undefined
-  res.status(201).json({ staff, tempPassword })
+  res.status(201).json({ staff })
 })
 
 export const updateTeammate = asyncHandler(async (req, res) => {
@@ -98,19 +114,32 @@ export const updateTeammate = asyncHandler(async (req, res) => {
   res.json({ staff })
 })
 
-// Admin-issued reset for a lost/never-received temp password — same
-// generate-and-return-once pattern as createTeammate, no email flow yet.
+// Admin sets the new password directly, same as createTeammate — emailed to
+// the teammate so they have it in writing.
 export const resetTeammatePassword = asyncHandler(async (req, res) => {
+  const { password } = req.body ?? {}
+  if (!password || password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' })
+
   const staff = await StaffUser.findById(req.params.id)
   if (!staff) return res.status(404).json({ message: 'Staff account not found' })
 
-  const tempPassword = crypto.randomBytes(9).toString('base64url')
-  staff.passwordHash = await bcrypt.hash(tempPassword, 10)
+  staff.passwordHash = await bcrypt.hash(password, 10)
   await staff.save()
 
   await logStaffActivity(`${req.staff.name} reset ${staff.name}'s password`, 'gold')
+  await sendMail({
+    to: staff.email,
+    subject: 'Your Mzobs staff password has been reset',
+    html: staffCredentialsEmailHtml({
+      name: staff.name,
+      email: staff.email,
+      tempPassword: password,
+      loginUrl: `${env.staffFrontendUrl}/login`,
+      isNewAccount: false,
+    }),
+  })
 
-  res.json({ tempPassword })
+  res.json({ success: true })
 })
 
 // No cascade — the handful of refs to a deleted StaffUser (resume/mock-
