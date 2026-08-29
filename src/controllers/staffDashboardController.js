@@ -11,8 +11,44 @@ import StaffUser from '../models/StaffUser.js'
 import User from '../models/User.js'
 
 const sum = (rows, field) => rows.reduce((total, r) => total + (r[field] ?? 0), 0)
+const RESUME_STATUSES = ['pending', 'verified', 'changes', 'rejected']
+
+// Workers only see their own assigned resumes and scheduled mocks — the
+// platform-wide KPIs/revenue below stay admin-only on the backend.
+async function getPersonalDashboard(req, res) {
+  const staffId = req.staff._id
+
+  const [assignedEmployees, myMockInterviews] = await Promise.all([
+    Employee.find({ 'resume.assignedTo': staffId }).select('resume'),
+    MockInterview.find({ scheduledBy: staffId }).populate('employee', 'name').sort({ when: 1 }),
+  ])
+
+  const resumeStatusCounts = RESUME_STATUSES.reduce((acc, s) => ({ ...acc, [s]: 0 }), {})
+  assignedEmployees.forEach((e) => {
+    const status = e.resume?.status
+    if (status in resumeStatusCounts) resumeStatusCounts[status] += 1
+  })
+
+  const kpis = {
+    resumeQueue: resumeStatusCounts.pending,
+    mockQueue: myMockInterviews.filter((m) => m.status === 'scheduled').length,
+  }
+
+  const resumeStatus = [
+    { label: 'Pending', value: resumeStatusCounts.pending },
+    { label: 'Verified', value: resumeStatusCounts.verified },
+    { label: 'Changes requested', value: resumeStatusCounts.changes },
+    { label: 'Rejected', value: resumeStatusCounts.rejected },
+  ]
+
+  const upcomingMockInterviews = myMockInterviews.filter((m) => m.status === 'scheduled').slice(0, 4)
+
+  res.json({ kpis, resumeStatus, upcomingMockInterviews })
+}
 
 export const getDashboard = asyncHandler(async (req, res) => {
+  if (req.staff.accessLevel !== 'admin') return getPersonalDashboard(req, res)
+
   const [employees, companies, jobs, applications, mockInterviews, invoices, activityRows, staffCount, employerCount] = await Promise.all([
     Employee.find({}).select('name resume subscription skillTrack'),
     Company.find({}).select('name verificationStatus'),
