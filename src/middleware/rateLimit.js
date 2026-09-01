@@ -1,8 +1,19 @@
 import rateLimit from 'express-rate-limit'
+import { RedisStore } from 'rate-limit-redis'
+import { getRedisClient, isRedisConfigured } from '../config/redis.js'
 
-// Per-instance in-memory store — correct for a single server instance.
-// Swap in a Redis store (rate-limit-redis) once this runs behind more than
-// one instance, or the limits stop meaning anything globally.
+// Shares one limit across every PM2 cluster worker / server instance once
+// REDIS_URL is set. Falls back to express-rate-limit's own in-memory store
+// (correct for a single instance) when it isn't — same "blank = no-op"
+// pattern as SMTP/VAPID in env.js.
+function makeStore(prefix) {
+  if (!isRedisConfigured()) return undefined
+  const client = getRedisClient()
+  return new RedisStore({
+    prefix,
+    sendCommand: (...args) => client.call(...args),
+  })
+}
 
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -10,6 +21,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many attempts. Please try again later.' },
+  store: makeStore('rl:auth:'),
 })
 
 export const apiLimiter = rateLimit({
@@ -18,6 +30,7 @@ export const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests. Please slow down.' },
+  store: makeStore('rl:api:'),
 })
 
 // Order creation/verification are cheap to spam and directly touch money —
@@ -28,4 +41,5 @@ export const paymentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many payment attempts. Please try again later.' },
+  store: makeStore('rl:payment:'),
 })

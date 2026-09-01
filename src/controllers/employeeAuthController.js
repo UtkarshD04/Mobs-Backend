@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
+import { verifyGoogleToken } from '../utils/googleAuth.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
 
@@ -37,7 +38,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const employee = await Employee.findOne({ email: email.toLowerCase().trim() }).select('+passwordHash')
-  if (!employee) return res.status(401).json({ message: 'Invalid email or password' })
+  if (!employee || !employee.passwordHash) return res.status(401).json({ message: 'Invalid email or password' })
 
   const matches = await bcrypt.compare(password, employee.passwordHash)
   if (!matches) return res.status(401).json({ message: 'Invalid email or password' })
@@ -87,6 +88,71 @@ export const signup = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     phone: phone.trim(),
     passwordHash,
+    experience: experience === 'experienced' ? 'experienced' : 'fresher',
+    graduation,
+    status: 'active',
+    lastActiveAt: new Date(),
+    subscription: claimedPayment ? { status: 'paid', amount: claimedPayment.amount, paidOn: claimedPayment.paidAt } : undefined,
+  })
+
+  if (claimedPayment) {
+    claimedPayment.employee = employee._id
+    await claimedPayment.save()
+  }
+
+  res.status(201).json(authResponse(employee))
+})
+
+// Signs in an existing employee account via a Google ID token. Deliberately
+// does not create an account on a missing match — signup needs phone/
+// graduation Google can't supply, so that has to go through googleSignup.
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body ?? {}
+  const { googleId, email } = await verifyGoogleToken(credential)
+
+  const employee = await Employee.findOne({ email })
+  if (!employee) return res.status(404).json({ message: 'No account found for this Google email. Please sign up first.' })
+
+  if (!employee.googleId) {
+    employee.googleId = googleId
+  }
+  if (employee.status === 'suspended') {
+    return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+  }
+
+  employee.lastActiveAt = new Date()
+  await employee.save()
+
+  res.json(authResponse(employee))
+})
+
+export const googleSignup = asyncHandler(async (req, res) => {
+  const { credential, phone, experience, graduation, paymentOrderId } = req.body ?? {}
+  const required = { phone, graduation }
+  if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
+    return res.status(400).json({ message: 'Phone and graduation are required' })
+  }
+
+  const { googleId, email, name } = await verifyGoogleToken(credential)
+
+  const existing = await Employee.findOne({ email })
+  if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+
+  let claimedPayment = null
+  if (typeof paymentOrderId === 'string' && paymentOrderId.trim()) {
+    claimedPayment = await Payment.findOne({
+      razorpayOrderId: paymentOrderId.trim(),
+      purpose: 'employee_subscription',
+      employee: null,
+      status: 'paid',
+    })
+  }
+
+  const employee = await Employee.create({
+    name: name || email,
+    email,
+    phone: phone.trim(),
+    googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
     status: 'active',

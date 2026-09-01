@@ -5,6 +5,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
+import { verifyGoogleToken } from '../utils/googleAuth.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
 
@@ -92,6 +93,67 @@ export const signup = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     phone: phone.trim(),
     passwordHash,
+    role: 'Admin',
+    status: 'active',
+    lastActiveAt: new Date(),
+  })
+
+  res.status(201).json(authResponse(user, company))
+})
+
+// Signs in an existing employer account via a Google ID token. Deliberately
+// does not create an account on a missing match — employer signup needs
+// company details Google can't supply, so that has to go through
+// googleSignup instead.
+export const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body ?? {}
+  const { googleId, email } = await verifyGoogleToken(credential)
+
+  const user = await User.findOne({ email }).select('+passwordHash').populate('company')
+  if (!user) return res.status(404).json({ message: 'No account found for this Google email. Please sign up first.' })
+
+  if (!user.googleId) {
+    user.googleId = googleId
+  }
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
+  }
+  if (user.company?.blocked) {
+    return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
+  }
+
+  user.lastActiveAt = new Date()
+  await user.save()
+
+  res.json(authResponse(user, user.company))
+})
+
+export const googleSignup = asyncHandler(async (req, res) => {
+  const { credential, companyName, phone, industry, size, website, hq } = req.body ?? {}
+  const required = { companyName, phone, industry, size, website, hq }
+  if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
+    return res.status(400).json({ message: 'All company fields are required to register your company' })
+  }
+
+  const { googleId, email, name } = await verifyGoogleToken(credential)
+
+  const existing = await User.findOne({ email })
+  if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+
+  const company = await Company.create({
+    name: companyName.trim(),
+    industry: industry.trim(),
+    size,
+    website: website.trim(),
+    hq: hq.trim(),
+  })
+
+  const user = await User.create({
+    company: company._id,
+    name: name || email,
+    email,
+    phone: phone.trim(),
+    googleId,
     role: 'Admin',
     status: 'active',
     lastActiveAt: new Date(),

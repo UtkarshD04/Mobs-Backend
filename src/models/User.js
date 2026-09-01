@@ -10,6 +10,10 @@ const userSchema = new Schema(
     // Optional: an invited team member has a roster row before they have
     // credentials (no invite-accept flow yet) — login rejects a missing hash.
     passwordHash: { type: String, required: false, select: false },
+    // Set for accounts created/linked via "Continue with Google" — null for
+    // password-only accounts. sparse so multiple null values don't collide
+    // on the unique-ish lookup pattern.
+    googleId: { type: String, default: null, index: true, sparse: true },
     role: { type: String, enum: ['Admin', 'Hiring Manager', 'Recruiter', 'Interviewer'], required: true },
     status: { type: String, enum: ['active', 'invited', 'disabled'], default: 'active' },
     lastActiveAt: { type: Date, default: null },

@@ -78,7 +78,10 @@ const employeeSchema = new Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-    passwordHash: { type: String, required: true, select: false },
+    // Not required: an account created via "Continue with Google" has no
+    // password at all.
+    passwordHash: { type: String, required: false, select: false },
+    googleId: { type: String, default: null, index: true, sparse: true },
     experience: { type: String, enum: ['fresher', 'experienced'], default: 'fresher' },
     graduation: { type: String, required: true },
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },

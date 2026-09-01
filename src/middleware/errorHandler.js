@@ -14,6 +14,15 @@ export function errorHandler(err, req, res, next) {
   if (err.code === 11000) {
     return res.status(409).json({ message: 'Already exists' })
   }
+  if (err.name === 'MulterError') {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'File is too large'
+        : err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE'
+          ? 'Too many files uploaded'
+          : 'File upload failed'
+    return res.status(400).json({ message })
+  }
 
   const status = err.status ?? 500
   // Errors with an explicit status were thrown intentionally (validation,

@@ -40,4 +40,14 @@ export const env = {
     privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
     subject: process.env.VAPID_SUBJECT ?? 'mailto:hello@mzobs.com',
   },
+  // Left blank, rate limiting falls back to an in-memory store (fine for a
+  // single instance). Set this once the backend runs as more than one PM2
+  // cluster worker / server instance, so limits are shared instead of
+  // multiplied per-process.
+  redisUrl: process.env.REDIS_URL ?? '',
+  // OAuth Web Client ID from Google Cloud Console — must match the one the
+  // frontend's GoogleOAuthProvider uses, since the backend checks it as the
+  // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
+  // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
 }
