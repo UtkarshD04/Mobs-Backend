@@ -18,7 +18,7 @@ export function streamSubscriptionInvoice(res, { payment, employee }) {
   doc.fontSize(16).font('Helvetica-Bold').fillColor('#000').text('Invoice')
   doc.moveDown(0.5)
 
-  const paidOn = payment.paidAt ?? new Date()
+  const paidOn = payment.paidAt ? new Date(payment.paidAt) : new Date()
   const rows = [
     ['Invoice / receipt no.', payment.receipt],
     ['Payment ID', payment.razorpayPaymentId ?? '—'],
@@ -29,9 +29,11 @@ export function streamSubscriptionInvoice(res, { payment, employee }) {
 
   doc.fontSize(10).font('Helvetica')
   for (const [label, value] of rows) {
-    doc.fillColor('#666').text(label, 50, doc.y, { continued: true, width: 150 })
-    doc.fillColor('#000').text(`  ${value}`)
-    doc.moveDown(0.3)
+    const y = doc.y
+    doc.fillColor('#666').text(label, 50, y, { width: 140, lineBreak: false })
+    doc.fillColor('#000').text(String(value), 190, y, { width: 360, lineBreak: false })
+    doc.y = y
+    doc.moveDown(1)
   }
 
   doc.moveDown(1)

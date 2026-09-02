@@ -49,16 +49,35 @@ export const getSubscription = asyncHandler(async (req, res) => {
 // Regenerated on every request straight from the paid Payment record rather
 // than stored anywhere — there's only ever one subscription payment per
 // employee, so nothing is lost by not persisting the PDF itself.
+//
+// Not every "paid" subscription has a Payment doc — staff can mark one paid
+// directly from the admin panel (offline/cash collection, recordSubscriptionPayment)
+// without ever going through Razorpay, so there's nothing to look up. Falls
+// back to the subscription subdocument itself in that case, just without a
+// Razorpay payment ID on the receipt.
 export const downloadSubscriptionInvoice = asyncHandler(async (req, res) => {
+  const employee = req.employee
   const payment = await Payment.findOne({
-    employee: req.employee._id,
+    employee: employee._id,
     purpose: 'employee_subscription',
     status: 'paid',
   }).sort({ paidAt: -1 })
 
-  if (!payment) return res.status(404).json({ message: 'No paid subscription invoice found' })
+  if (payment) return streamSubscriptionInvoice(res, { payment, employee })
 
-  streamSubscriptionInvoice(res, { payment, employee: req.employee })
+  if (employee.subscription?.status !== 'paid') {
+    return res.status(404).json({ message: 'No paid subscription invoice found' })
+  }
+
+  const fallbackPayment = {
+    receipt: `sub_${employee._id}`,
+    razorpayPaymentId: null,
+    amount: employee.subscription.amount,
+    paidAt: employee.subscription.paidOn ?? employee.createdAt,
+    discountAmount: 0,
+    couponCode: null,
+  }
+  streamSubscriptionInvoice(res, { payment: fallbackPayment, employee })
 })
 
 // When Razorpay isn't configured (no keys in env — the case on a fresh dev
