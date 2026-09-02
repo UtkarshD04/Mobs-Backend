@@ -8,6 +8,27 @@ import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
+import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
+
+const PHONE_TOKEN_PURPOSE = 'phone-verify'
+const PHONE_RE = /^[6-9]\d{9}$/
+
+function issuePhoneToken(phone) {
+  return jwt.sign({ phone, purpose: PHONE_TOKEN_PURPOSE }, env.jwtSecret, { expiresIn: '15m' })
+}
+
+// Confirms `phoneToken` (minted by verifyPhoneOtp) actually attests to
+// `phone` before letting signup proceed — a signup can't just claim a
+// phone was verified, it has to present the token that proves it.
+function checkPhoneToken(phoneToken, phone) {
+  let decoded
+  try {
+    decoded = jwt.verify(phoneToken, env.jwtSecret)
+  } catch {
+    return false
+  }
+  return decoded.purpose === PHONE_TOKEN_PURPOSE && decoded.phone === phone
+}
 
 function issueToken(employee) {
   return jwt.sign({ sub: employee._id.toString(), type: 'employee' }, env.jwtSecret, {
@@ -21,6 +42,7 @@ function employeeSummary(employee) {
     name: employee.name,
     email: employee.email,
     phone: employee.phone,
+    phoneVerified: employee.phoneVerified,
     experience: employee.experience,
     graduation: employee.graduation,
     initials: initialsOf(employee.name),
@@ -53,14 +75,63 @@ export const login = asyncHandler(async (req, res) => {
   res.json(authResponse(employee))
 })
 
+export const sendPhoneOtp = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+
+  const { phone } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
+    return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
+  }
+
+  await sendOtp(phone.trim())
+  res.json({ message: 'OTP sent' })
+})
+
+export const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+
+  const { phone, otp } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof otp !== 'string' || !otp.trim()) {
+    return res.status(400).json({ message: 'Phone and OTP are required' })
+  }
+
+  const ok = await verifyOtp(phone.trim(), otp.trim())
+  if (!ok) return res.status(400).json({ message: 'Incorrect or expired OTP' })
+
+  res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
+// Companion to verifyPhoneOtp, for the website's MSG91 *widget* flow
+// instead of the mobile app's direct OTP API flow — same end result (a
+// phoneToken), different proof: MSG91 confirms the widget's access-token
+// server-to-server instead of us checking an OTP code directly.
+export const verifyPhoneWidget = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+
+  const { phone, accessToken } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof accessToken !== 'string' || !accessToken.trim()) {
+    return res.status(400).json({ message: 'Phone and access token are required' })
+  }
+
+  const verifiedIdentifier = await verifyWidgetAccessToken(accessToken.trim())
+  if (!verifiedIdentifier || !verifiedIdentifier.includes(phone.trim())) {
+    return res.status(400).json({ message: 'Could not verify this access token for the given phone number' })
+  }
+
+  res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
 export const signup = asyncHandler(async (req, res) => {
-  const { name, email, phone, password, experience, graduation, paymentOrderId } = req.body ?? {}
+  const { name, email, phone, password, experience, graduation, paymentOrderId, phoneToken } = req.body ?? {}
   const required = { name, email, phone, password, graduation }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'Name, email, phone, password and graduation are required' })
   }
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
+  }
+  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
+    return res.status(400).json({ message: 'Please verify your mobile number first' })
   }
 
   const normalizedEmail = email.toLowerCase().trim()
@@ -87,6 +158,7 @@ export const signup = asyncHandler(async (req, res) => {
     name: name.trim(),
     email: normalizedEmail,
     phone: phone.trim(),
+    phoneVerified: true,
     passwordHash,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
@@ -127,10 +199,13 @@ export const googleLogin = asyncHandler(async (req, res) => {
 })
 
 export const googleSignup = asyncHandler(async (req, res) => {
-  const { credential, phone, experience, graduation, paymentOrderId } = req.body ?? {}
+  const { credential, phone, experience, graduation, paymentOrderId, phoneToken } = req.body ?? {}
   const required = { phone, graduation }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'Phone and graduation are required' })
+  }
+  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
+    return res.status(400).json({ message: 'Please verify your mobile number first' })
   }
 
   const { googleId, email, name } = await verifyGoogleToken(credential)
@@ -152,6 +227,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     name: name || email,
     email,
     phone: phone.trim(),
+    phoneVerified: true,
     googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,

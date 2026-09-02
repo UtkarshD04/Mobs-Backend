@@ -50,6 +50,14 @@ export const env = {
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
   // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  // MSG91 OTP API — https://control.msg91.com. Left blank, mobile OTP
+  // verification fails cleanly with a 503 instead of crashing (same
+  // no-op pattern as SMTP/VAPID/Razorpay/Google above). templateId is the
+  // DLT-registered OTP template id from the MSG91 dashboard.
+  msg91: {
+    authKey: process.env.MSG91_AUTH_KEY ?? '',
+    templateId: process.env.MSG91_OTP_TEMPLATE_ID ?? '',
+  },
   // GST on the subscription fee — the fee is treated as tax-inclusive, so
   // the taxable value is derived by carving GST out of it rather than added
   // on top; the candidate's checkout price doesn't change. Left blank, the

@@ -33,6 +33,18 @@ export const apiLimiter = rateLimit({
   store: makeStore('rl:api:'),
 })
 
+// Each OTP send is a billed SMS, so this is capped much tighter than the
+// general auth limiter — keyed by IP same as the others (no per-phone key
+// available pre-parse), good enough to blunt casual abuse.
+export const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many OTP requests. Please try again later.' },
+  store: makeStore('rl:otp:'),
+})
+
 // Order creation/verification are cheap to spam and directly touch money —
 // capped tighter than the general API limit.
 export const paymentLimiter = rateLimit({

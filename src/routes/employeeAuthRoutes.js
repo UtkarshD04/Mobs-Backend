@@ -1,10 +1,25 @@
 import { Router } from 'express'
 import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
-import { authLimiter } from '../middleware/rateLimit.js'
-import { login, signup, googleLogin, googleSignup, getMe, updateMe, forgotPassword, resetPassword } from '../controllers/employeeAuthController.js'
+import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
+import {
+  login,
+  signup,
+  googleLogin,
+  googleSignup,
+  getMe,
+  updateMe,
+  forgotPassword,
+  resetPassword,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  verifyPhoneWidget,
+} from '../controllers/employeeAuthController.js'
 
 const router = Router()
 
+router.post('/send-otp', otpLimiter, sendPhoneOtp)
+router.post('/verify-otp', otpLimiter, verifyPhoneOtp)
+router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
 router.post('/login', authLimiter, login)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)

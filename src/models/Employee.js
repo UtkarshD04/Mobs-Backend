@@ -97,6 +97,7 @@ const employeeSchema = new Schema(
 
     // Profile — collected across the onboarding wizard / profile editor
     phone: { type: String, default: '' },
+    phoneVerified: { type: Boolean, default: false },
     dob: { type: String, default: '' },
     gender: { type: String, default: '' },
     maritalStatus: { type: String, default: '' },
