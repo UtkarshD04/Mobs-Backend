@@ -57,7 +57,7 @@ export function streamSubscriptionInvoice(res, { payment, employee }) {
 
   // ---- To / From -----------------------------------------------------------
   bottomA = labelValue(doc, MARGIN, y, 'To', [employee.name, employee.email, employee.phone])
-  const fromLines = ['Mzobs — Solace Technologies']
+  const fromLines = ['Mzobs']
   if (env.gst.number) fromLines.push(`GSTIN ${env.gst.number}`, `${env.gst.state}, India`)
   bottomB = labelValue(doc, RIGHT_COL_X, y, 'From', fromLines)
   y = Math.max(bottomA, bottomB) + 30
@@ -108,13 +108,9 @@ export function streamSubscriptionInvoice(res, { payment, employee }) {
   const rate = env.gst.number ? env.gst.ratePercent : 0
   const taxable = rate > 0 ? Math.round((payment.amount / (1 + rate / 100)) * 100) / 100 : payment.amount
   const totalTax = Math.round((payment.amount - taxable) * 100) / 100
-  const halfTax = Math.round((totalTax / 2) * 100) / 100
 
   summaryRow('Total', money(payment.amount))
-  if (rate > 0) {
-    summaryRow(`CGST @ ${(rate / 2).toFixed(1)}%`, money(halfTax))
-    summaryRow(`SGST @ ${(rate / 2).toFixed(1)}%`, money(halfTax))
-  }
+  if (rate > 0) summaryRow(`Includes ${rate}% tax`, money(totalTax))
   sy += 4
   doc.moveTo(summaryX, sy).lineTo(PAGE_WIDTH - MARGIN, sy).strokeColor(BORDER).lineWidth(1).stroke()
   sy += 10
@@ -126,9 +122,9 @@ export function streamSubscriptionInvoice(res, { payment, employee }) {
   doc.font('Helvetica').fontSize(9.5).fillColor(GREY).text('Please retain for your records.', MARGIN, y)
   y += 20
   doc.fontSize(9).fillColor(GREY_LIGHT)
-  const legalLines = ['Mzobs — a Solace Technologies product.']
+  const legalLines = []
   if (env.gst.number) legalLines.push(`GSTIN ${env.gst.number} · ${env.gst.state}, India`)
-  legalLines.push(`Copyright © ${paidOn.getFullYear()} Solace Technologies. All rights reserved.`)
+  legalLines.push(`Copyright © ${paidOn.getFullYear()} Mzobs. All rights reserved.`)
   for (const line of legalLines) {
     doc.text(line, MARGIN, y, { width: CONTENT_WIDTH })
     y += 14
