@@ -50,4 +50,17 @@ export const env = {
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
   // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  // GST on the subscription fee — the fee is treated as tax-inclusive, so
+  // the taxable value is derived by carving GST out of it rather than added
+  // on top; the candidate's checkout price doesn't change. Left blank, the
+  // invoice PDF prints without any tax breakdown (pre-GST-registration state).
+  gst: {
+    number: process.env.GST_NUMBER ?? '',
+    ratePercent: Number(process.env.GST_RATE_PERCENT ?? 18),
+    // Used only to label the split as CGST+SGST — we don't collect the
+    // candidate's billing state, so this assumes intra-state (same state as
+    // the company) for every invoice. Get this confirmed by your CA before
+    // relying on it for interstate transactions (which should be IGST).
+    state: process.env.GST_STATE ?? 'Uttar Pradesh',
+  },
 }
