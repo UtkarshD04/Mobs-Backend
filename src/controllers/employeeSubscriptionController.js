@@ -6,6 +6,7 @@ import { logger } from '../config/logger.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
 import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
+import { streamSubscriptionInvoice } from '../utils/invoicePdf.js'
 
 const DEFAULT_FEE = 299
 
@@ -43,6 +44,21 @@ export const previewCoupon = asyncHandler(async (req, res) => {
 
 export const getSubscription = asyncHandler(async (req, res) => {
   res.json(req.employee.subscription)
+})
+
+// Regenerated on every request straight from the paid Payment record rather
+// than stored anywhere — there's only ever one subscription payment per
+// employee, so nothing is lost by not persisting the PDF itself.
+export const downloadSubscriptionInvoice = asyncHandler(async (req, res) => {
+  const payment = await Payment.findOne({
+    employee: req.employee._id,
+    purpose: 'employee_subscription',
+    status: 'paid',
+  }).sort({ paidAt: -1 })
+
+  if (!payment) return res.status(404).json({ message: 'No paid subscription invoice found' })
+
+  streamSubscriptionInvoice(res, { payment, employee: req.employee })
 })
 
 // When Razorpay isn't configured (no keys in env — the case on a fresh dev

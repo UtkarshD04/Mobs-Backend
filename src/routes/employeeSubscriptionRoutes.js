@@ -10,6 +10,7 @@ import {
   confirmMockSubscriptionPayment,
   confirmGuestMockSubscriptionPayment,
   previewCoupon,
+  downloadSubscriptionInvoice,
 } from '../controllers/employeeSubscriptionController.js'
 
 const router = Router()
@@ -20,6 +21,7 @@ const router = Router()
 router.post('/coupon/preview', paymentLimiter, previewCoupon)
 
 router.get('/', requireEmployeeAuth, getSubscription)
+router.get('/invoice', requireEmployeeAuth, downloadSubscriptionInvoice)
 router.post('/order', requireEmployeeAuth, paymentLimiter, createSubscriptionOrder)
 router.post('/verify', requireEmployeeAuth, paymentLimiter, verifySubscriptionPayment)
 router.post('/mock-confirm', requireEmployeeAuth, paymentLimiter, confirmMockSubscriptionPayment)
