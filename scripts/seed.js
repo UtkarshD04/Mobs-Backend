@@ -5,6 +5,7 @@ import { env } from '../src/config/env.js'
 import Company from '../src/models/Company.js'
 import User from '../src/models/User.js'
 import StaffUser from '../src/models/StaffUser.js'
+import Job from '../src/models/Job.js'
 
 async function seed() {
   await connectDB(env.mongoUri)
@@ -62,6 +63,35 @@ async function seed() {
     console.log(`Created staff user: ${staff.email}`)
   } else {
     console.log(`Staff user already exists: ${staff.email}`)
+  }
+
+  let job = await Job.findOne({ company: company._id, title: 'Frontend Engineer' })
+  if (!job) {
+    job = await Job.create({
+      company: company._id,
+      createdBy: admin._id,
+      title: 'Frontend Engineer',
+      department: 'Engineering',
+      employmentType: 'Full-time',
+      experienceMin: 2,
+      experienceMax: 5,
+      salaryMin: 800000,
+      salaryMax: 1400000,
+      vacancies: 2,
+      location: 'Bengaluru',
+      workMode: 'Hybrid',
+      skills: ['React', 'JavaScript', 'CSS'],
+      track: 'tech',
+      description: 'Build and ship user-facing features across our web products, working closely with design and backend teams.',
+      benefits: ['Health insurance', 'Flexible hours', 'Learning budget'],
+      deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      status: 'sourcing',
+      visibleToCandidates: true,
+      postedOn: new Date(),
+    })
+    console.log(`Created job opening: ${job.title} (${job.id})`)
+  } else {
+    console.log(`Job opening already exists: ${job.title} (${job.id})`)
   }
 
   console.log('\nSeed complete.')
