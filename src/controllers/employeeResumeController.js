@@ -5,9 +5,6 @@ export const getResume = asyncHandler(async (req, res) => {
 })
 
 export const uploadResumeFile = asyncHandler(async (req, res) => {
-  if (req.employee.subscription?.status !== 'paid') {
-    return res.status(403).json({ message: 'Activate your placement support (₹299, one-time) before uploading your resume' })
-  }
   if (!req.file) return res.status(400).json({ message: 'A PDF or Word resume file is required' })
 
   const employee = req.employee
@@ -31,8 +28,9 @@ export const uploadResumeFile = asyncHandler(async (req, res) => {
     url,
     version: nextVersion,
     uploadedOn,
-    status: 'pending',
-    verifiedOn: null,
+    // Verified immediately on upload — no staff review step to wait on.
+    status: 'verified',
+    verifiedOn: uploadedOn,
     reviewer: '',
     reviewerRole: '',
     score: null,

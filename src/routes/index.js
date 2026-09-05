@@ -44,6 +44,7 @@ import staffPushRoutes from './staffPushRoutes.js'
 import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
+import publicJobRoutes from './publicJobRoutes.js'
 
 const employerRoutes = Router()
 employerRoutes.use('/auth', authRoutes)
@@ -100,5 +101,6 @@ router.use('/employee', employeeRoutes)
 router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
 router.use('/push', publicPushRoutes)
+router.use('/jobs', publicJobRoutes)
 
 export default router

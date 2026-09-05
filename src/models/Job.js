@@ -5,6 +5,10 @@ const jobSchema = new Schema(
   {
     company: { type: Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    // Set instead of createdBy when Mzobs staff post a job directly (not
+    // submitted by an employer) — a separate ref since staff accounts live
+    // in the StaffUser collection, not User.
+    postedByStaff: { type: Schema.Types.ObjectId, ref: 'StaffUser', default: null },
 
     title: { type: String, required: true },
     department: { type: String, required: true },

@@ -7,8 +7,74 @@ import { sendPush } from '../utils/push.js'
 import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Batch from '../models/Batch.js'
+import Company from '../models/Company.js'
 import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
+
+const REQUIRED_JOB_FIELDS = [
+  'title',
+  'department',
+  'employmentType',
+  'experienceMin',
+  'experienceMax',
+  'salaryMin',
+  'salaryMax',
+  'vacancies',
+  'location',
+  'workMode',
+  'description',
+  'deadline',
+]
+
+// Admin/Ops posting a role directly — no employer submission, no invoice —
+// it's Mzobs's own listing, so it's saved already live on the candidate job
+// board (same status/visibility a paid, sourcing employer job would have).
+export const createJob = asyncHandler(async (req, res) => {
+  const body = req.body ?? {}
+  const missing = REQUIRED_JOB_FIELDS.filter((field) => body[field] === undefined || body[field] === null || body[field] === '')
+  if (missing.length) return res.status(400).json({ message: `Missing required fields: ${missing.join(', ')}` })
+
+  const { companyId, companyName } = body
+  if (!companyId && !companyName?.trim()) return res.status(400).json({ message: 'Select a company or enter a new company name' })
+
+  let company
+  if (companyId) {
+    company = await Company.findById(companyId)
+    if (!company) return res.status(404).json({ message: 'Company not found' })
+  } else {
+    company = await Company.create({ name: companyName.trim() })
+  }
+
+  const now = new Date()
+  const job = await Job.create({
+    company: company._id,
+    postedByStaff: req.staff._id,
+    title: body.title,
+    department: body.department,
+    employmentType: body.employmentType,
+    experienceMin: body.experienceMin,
+    experienceMax: body.experienceMax,
+    salaryMin: body.salaryMin,
+    salaryMax: body.salaryMax,
+    vacancies: body.vacancies,
+    location: body.location,
+    workMode: body.workMode,
+    skills: body.skills ?? [],
+    track: body.track ?? '',
+    description: body.description,
+    benefits: body.benefits ?? [],
+    deadline: body.deadline,
+    status: 'sourcing',
+    visibleToCandidates: true,
+    submittedOn: now,
+    postedOn: now,
+    updatedOn: now,
+  })
+
+  await logStaffActivity(`${req.staff.name} posted "${job.title}" for ${company.name} — live on the candidate job board`, 'navy')
+
+  res.status(201).json(await job.populate('company', 'name logo'))
+})
 
 export const listJobs = asyncHandler(async (req, res) => {
   const { status, search } = req.query

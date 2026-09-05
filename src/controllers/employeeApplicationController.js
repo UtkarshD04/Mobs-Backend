@@ -2,7 +2,6 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Application from '../models/Application.js'
 import Job from '../models/Job.js'
-import MockInterview from '../models/MockInterview.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
@@ -14,7 +13,11 @@ function fitScore(employeeSkills = [], jobSkills = []) {
 export const listApplications = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Application, { employee: req.employee._id }, paginationParams(req), {
     sort: { appliedOn: -1 },
-    populate: { path: 'job', select: 'title department location workMode company' },
+    populate: {
+      path: 'job',
+      select: 'title department location workMode company',
+      populate: { path: 'company', select: 'name logo' },
+    },
   })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
@@ -25,16 +28,8 @@ export const applyToJob = asyncHandler(async (req, res) => {
   if (!jobId) return res.status(400).json({ message: 'jobId is required' })
 
   const employee = req.employee
-  if (employee.subscription?.status !== 'paid') {
-    return res.status(403).json({ message: 'Activate your placement support (₹299, one-time) before applying to jobs' })
-  }
   if (employee.resume?.status !== 'verified') {
     return res.status(403).json({ message: 'Your resume must be verified before you can apply' })
-  }
-
-  const mockInterview = await MockInterview.findOne({ employee: employee._id })
-  if (mockInterview?.status !== 'completed') {
-    return res.status(403).json({ message: 'You must complete your Mzobs verification interview before you can apply' })
   }
 
   const job = await Job.findOne({ _id: jobId, visibleToCandidates: true, status: { $in: ['sourcing', 'delivered'] } })
