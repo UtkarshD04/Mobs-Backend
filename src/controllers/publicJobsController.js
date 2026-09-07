@@ -21,7 +21,7 @@ function toLatestJobSummary(job) {
     company: job.company?.name ?? '',
     location: job.location,
     experience: job.experienceMin != null && job.experienceMax != null ? `${job.experienceMin}–${job.experienceMax} yrs` : '',
-    salary: job.salaryMin && job.salaryMax ? `${formatINR(job.salaryMin)} – ${formatINR(job.salaryMax)}` : '',
+    salary: job.salaryMin && job.salaryMax ? `${formatINR(job.salaryMin)} – ${formatINR(job.salaryMax)}` : 'Depends on interview & experience',
     workMode: job.workMode,
     employmentType: job.employmentType,
     vacancies: job.vacancies,
