@@ -21,7 +21,12 @@ app.set('trust proxy', 1)
 
 app.use(helmet())
 app.use(compression())
-app.use(cors({ origin: env.corsOrigin }))
+// `exposedHeaders` is required for cross-origin callers (every frontend here
+// runs on its own dev port, and each is a separate origin from the API) to
+// read pagination metadata off the response at all — browsers hide any
+// response header from JS by default unless it's explicitly exposed here.
+// Non-sensitive metadata only; nothing else about the CORS policy changes.
+app.use(cors({ origin: env.corsOrigin, exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'] }))
 // Default pino-http serializers dump the full req/res (headers included, so
 // the Authorization bearer token would land in the terminal on every call) —
 // pared down to just what's useful for a dev console.

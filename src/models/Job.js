@@ -50,6 +50,13 @@ const jobSchema = new Schema(
   { timestamps: true }
 )
 
+// Every employee-facing job query (GET /api/employee/jobs and /facets) always
+// scopes on visibleToCandidates + status first, then commonly sorts by
+// postedOn or filters by workMode/track — index those combinations.
+jobSchema.index({ visibleToCandidates: 1, status: 1, postedOn: -1 })
+jobSchema.index({ visibleToCandidates: 1, status: 1, workMode: 1 })
+jobSchema.index({ visibleToCandidates: 1, status: 1, track: 1 })
+
 applyIdTransform(jobSchema)
 
 export default model('Job', jobSchema)
