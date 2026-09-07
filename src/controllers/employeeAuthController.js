@@ -122,13 +122,16 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
 })
 
 export const signup = asyncHandler(async (req, res) => {
-  const { name, email, phone, password, experience, graduation, paymentOrderId, phoneToken } = req.body ?? {}
-  const required = { name, email, phone, password, graduation }
+  const { name, email, phone, password, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
+  const required = { name, email, phone, password, graduation, city, state, pincode }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
-    return res.status(400).json({ message: 'Name, email, phone, password and graduation are required' })
+    return res.status(400).json({ message: 'Name, email, phone, password, graduation, city, state and pincode are required' })
   }
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
+  }
+  if (!/^\d{6}$/.test(pincode.trim())) {
+    return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
   if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
     return res.status(400).json({ message: 'Please verify your mobile number first' })
@@ -162,6 +165,9 @@ export const signup = asyncHandler(async (req, res) => {
     passwordHash,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
+    currentCity: city.trim(),
+    state: state.trim(),
+    pincode: pincode.trim(),
     status: 'active',
     lastActiveAt: new Date(),
     subscription: claimedPayment ? { status: 'paid', amount: claimedPayment.amount, paidOn: claimedPayment.paidAt } : undefined,
@@ -199,10 +205,13 @@ export const googleLogin = asyncHandler(async (req, res) => {
 })
 
 export const googleSignup = asyncHandler(async (req, res) => {
-  const { credential, phone, experience, graduation, paymentOrderId, phoneToken } = req.body ?? {}
-  const required = { phone, graduation }
+  const { credential, phone, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
+  const required = { phone, graduation, city, state, pincode }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
-    return res.status(400).json({ message: 'Phone and graduation are required' })
+    return res.status(400).json({ message: 'Phone, graduation, city, state and pincode are required' })
+  }
+  if (!/^\d{6}$/.test(pincode.trim())) {
+    return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
   if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
     return res.status(400).json({ message: 'Please verify your mobile number first' })
@@ -231,6 +240,9 @@ export const googleSignup = asyncHandler(async (req, res) => {
     googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
+    currentCity: city.trim(),
+    state: state.trim(),
+    pincode: pincode.trim(),
     status: 'active',
     lastActiveAt: new Date(),
     subscription: claimedPayment ? { status: 'paid', amount: claimedPayment.amount, paidOn: claimedPayment.paidAt } : undefined,

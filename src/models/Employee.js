@@ -102,6 +102,8 @@ const employeeSchema = new Schema(
     gender: { type: String, default: '' },
     maritalStatus: { type: String, default: '' },
     currentCity: { type: String, default: '' },
+    state: { type: String, default: '' },
+    pincode: { type: String, default: '' },
     relocationOk: { type: Boolean, default: false },
     currentCompany: { type: String, default: '' },
     designation: { type: String, default: '' },
