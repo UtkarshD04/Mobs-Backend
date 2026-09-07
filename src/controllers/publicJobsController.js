@@ -206,3 +206,29 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
 
   res.json({ type: 'all', query, items })
 })
+
+// Real, live counts for the Landing Frontend's "Explore jobs by category"
+// tiles — `tracks` mirrors the Job.track enum exactly (tech/sales/marketing/
+// design/hr/ops/support), so content.js just looks up its own category by
+// track key rather than this endpoint knowing anything about marketing-site
+// category titles. `freshers`/`remote` are counted through the exact same
+// buildJobQuery a click on those tiles would filter with (experience=0-1 /
+// location=Remote), so the number shown always matches what browsing there
+// actually returns.
+export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
+  const [trackRows, freshers, remote] = await Promise.all([
+    Job.aggregate([
+      { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+      { $group: { _id: '$track', count: { $sum: 1 } } },
+    ]),
+    Job.countDocuments(buildJobQuery(parseJobFilters({ experience: '0-1' }))),
+    Job.countDocuments(buildJobQuery(parseJobFilters({ location: 'Remote' }))),
+  ])
+
+  const tracks = {}
+  trackRows.forEach((row) => {
+    if (row._id) tracks[row._id] = row.count
+  })
+
+  res.json({ tracks, freshers, remote })
+})
