@@ -214,15 +214,17 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
 // category titles. `freshers`/`remote` are counted through the exact same
 // buildJobQuery a click on those tiles would filter with (experience=0-1 /
 // location=Remote), so the number shown always matches what browsing there
-// actually returns.
+// actually returns. `finance` has no Job.track value to group by (see the
+// enum on Job.js) — Finance postings only ever land in the free-text
+// `department` field, so it's counted by matching that instead, same as
+// every other number here: a real query result, never a hardcoded figure.
 export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
-  const [trackRows, freshers, remote] = await Promise.all([
-    Job.aggregate([
-      { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
-      { $group: { _id: '$track', count: { $sum: 1 } } },
-    ]),
+  const baseMatch = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
+  const [trackRows, freshers, remote, finance] = await Promise.all([
+    Job.aggregate([{ $match: baseMatch }, { $group: { _id: '$track', count: { $sum: 1 } } }]),
     Job.countDocuments(buildJobQuery(parseJobFilters({ experience: '0-1' }))),
     Job.countDocuments(buildJobQuery(parseJobFilters({ location: 'Remote' }))),
+    Job.countDocuments({ ...baseMatch, department: /finance|accounting/i }),
   ])
 
   const tracks = {}
@@ -230,5 +232,5 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
     if (row._id) tracks[row._id] = row.count
   })
 
-  res.json({ tracks, freshers, remote })
+  res.json({ tracks, freshers, remote, finance })
 })
