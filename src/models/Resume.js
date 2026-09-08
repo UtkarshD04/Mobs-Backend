@@ -10,7 +10,15 @@ const resumeSchema = new Schema(
     email: { type: String, default: '' },
     phone: { type: String, default: '' },
     file: { type: String, required: true },
-    url: { type: String, required: true },
+    // Deprecated: pre-S3 uploads stored a static `/uploads/...` path here.
+    // New uploads leave this blank and store the S3 object key in `s3Key`
+    // instead — the API response's `url` field is generated fresh per
+    // request from `s3Key` (see resumeAccess.js), never persisted.
+    url: { type: String, default: '' },
+    // select: false — internal storage reference, never sent to a client
+    // directly; callers explicitly `.select('+s3Key')` when minting an
+    // access link (see resumeAccess.js usage sites).
+    s3Key: { type: String, default: '', select: false },
     uploadedOn: { type: Date, default: Date.now },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'StaffUser' },
 

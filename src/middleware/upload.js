@@ -1,22 +1,14 @@
-import fs from 'fs'
-import path from 'path'
 import multer from 'multer'
 
-const UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'resumes')
-fs.mkdirSync(UPLOAD_ROOT, { recursive: true })
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_ROOT),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, `${req.employee._id}-${Date.now()}${ext}`)
-  },
-})
-
+// Memory storage: the file lands in req.file.buffer instead of on local
+// disk, since it goes straight to S3 (see employeeResumeController.js).
+// fileFilter here is just a fast reject on obviously-wrong mimetypes —
+// the real content check (magic-byte sniffing) happens in the controller,
+// since a client-supplied mimetype can't be trusted on its own.
 const ALLOWED_MIME = new Set(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
 
 export const uploadResume = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => cb(null, ALLOWED_MIME.has(file.mimetype)),
 }).single('resume')

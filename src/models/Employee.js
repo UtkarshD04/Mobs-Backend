@@ -8,7 +8,16 @@ const workHistorySchema = new Schema({ company: String, role: String, duration: 
 const resumeSchema = new Schema(
   {
     file: { type: String, default: '' },
+    // Deprecated: pre-S3 uploads stored a static `/uploads/...` path here.
+    // New uploads leave this blank and store the S3 object key in `s3Key`
+    // instead — the API response's `url` field is generated fresh per
+    // request from `s3Key` (see resumeAccess.js), never persisted.
     url: { type: String, default: '' },
+    // select: false — same treatment as passwordHash below: an internal
+    // storage reference that must never ride along on a normal `.find()`/
+    // `.populate()`. Callers that mint a resume access link explicitly
+    // `.select('+resume.s3Key')` (see resumeAccess.js usage sites).
+    s3Key: { type: String, default: '', select: false },
     version: { type: Number, default: 0 },
     uploadedOn: { type: Date, default: null },
     status: { type: String, enum: ['none', 'pending', 'verified', 'changes', 'rejected'], default: 'none' },
@@ -33,6 +42,7 @@ const resumeHistorySchema = new Schema(
     version: Number,
     file: String,
     url: String,
+    s3Key: { type: String, select: false },
     uploadedOn: Date,
     score: Number,
     status: String,

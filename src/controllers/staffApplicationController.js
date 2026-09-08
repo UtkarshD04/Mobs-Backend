@@ -23,7 +23,12 @@ export const listApplications = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Application, query, paginationParams(req), {
     sort: { appliedOn: -1 },
     populate: [
-      { path: 'employee', select: 'name email skills experience resume skillTrack' },
+      // Enumerated resume subfields on purpose, not bare `resume` — Mongoose's
+      // per-path `select: false` on `resume.s3Key` (see Employee.js) is only
+      // honored when the path isn't explicitly named in an inclusion
+      // projection, so a bare `resume` here would pull the storage key
+      // straight into this response.
+      { path: 'employee', select: 'name email skills experience resume.status resume.file resume.version resume.uploadedOn resume.score skillTrack' },
       { path: 'job', select: 'title company', populate: { path: 'company', select: 'name' } },
     ],
   })

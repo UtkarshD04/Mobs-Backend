@@ -1,4 +1,5 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
 
 const PROFILE_FIELDS = [
   'name',
@@ -38,8 +39,18 @@ function pickInput(body) {
   return input
 }
 
+// req.employee carries resume.s3Key/resumeHistory.s3Key (selected in
+// requireEmployeeAuth) purely so this can mint a fresh access link — the
+// key itself must never reach the client.
+function serializeProfile(employee) {
+  const json = employee.toJSON()
+  json.resume = serializeResumeSubdoc(employee.resume, 'employee-resume')
+  json.resumeHistory = serializeResumeHistory(employee.resumeHistory, 'employee-resume')
+  return json
+}
+
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json(req.employee)
+  res.json(serializeProfile(req.employee))
 })
 
 export const updateProfile = asyncHandler(async (req, res) => {
@@ -51,5 +62,5 @@ export const updateProfile = asyncHandler(async (req, res) => {
   Object.assign(req.employee, input)
   await req.employee.save()
 
-  res.json(req.employee)
+  res.json(serializeProfile(req.employee))
 })

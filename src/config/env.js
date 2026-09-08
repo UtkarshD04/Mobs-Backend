@@ -58,6 +58,17 @@ export const env = {
     authKey: process.env.MSG91_AUTH_KEY ?? '',
     templateId: process.env.MSG91_OTP_TEMPLATE_ID ?? '',
   },
+  // AWS S3 for private candidate file storage (resumes). Region defaults to
+  // Mumbai since that's where the bucket lives. Left blank, upload/download
+  // endpoints fail cleanly with a 503 instead of crashing (same no-op
+  // pattern as SMTP/VAPID/Razorpay/Google above) — lets the app boot and
+  // serve everything else even before AWS credentials are provisioned.
+  aws: {
+    region: process.env.AWS_REGION ?? 'ap-south-1',
+    bucket: process.env.AWS_S3_BUCKET ?? '',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? '',
+  },
   // GST on the subscription fee — the fee is treated as tax-inclusive, so
   // the taxable value is derived by carving GST out of it rather than added
   // on top; the candidate's checkout price doesn't change. Left blank, the

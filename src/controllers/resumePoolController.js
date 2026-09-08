@@ -1,3 +1,4 @@
+import { Types } from 'mongoose'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
@@ -5,24 +6,74 @@ import Resume from '../models/Resume.js'
 import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
+import { uploadObject, deleteObject, isS3Configured } from '../utils/s3.js'
+import { validateResumeFile, RESUME_POOL_ALLOWED_EXTENSIONS } from '../utils/fileValidation.js'
+import { resumePoolKey, buildResumeAccessPath } from '../utils/resumeAccess.js'
+import { logger } from '../config/logger.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 
+// `s3Key` is select:false on the model (never sent to a client raw) — this
+// runs on docs fetched with `+s3Key` and swaps it for a fresh, short-lived
+// access link instead. Pre-migration rows have a real static `/uploads/...`
+// url and no s3Key — left untouched, since express.static still serves it.
+function serializePoolResume(doc) {
+  const json = doc.toJSON()
+  const { s3Key, ...rest } = json
+  if (s3Key) rest.url = buildResumeAccessPath(s3Key, rest.file, 'resume-pool')
+  return rest
+}
+
 export const bulkUpload = asyncHandler(async (req, res) => {
   if (!req.files?.length) return res.status(400).json({ message: 'At least one PDF or Word resume file is required' })
+  if (!isS3Configured()) return res.status(503).json({ message: 'Resume storage is not configured. Please contact support.' })
 
-  const docs = req.files.map((file) => ({
+  const prepared = []
+  const invalid = []
+  for (const file of req.files) {
+    const result = validateResumeFile(file, { allowedExtensions: RESUME_POOL_ALLOWED_EXTENSIONS })
+    if (!result.ok) invalid.push(file.originalname)
+    else prepared.push({ _id: new Types.ObjectId(), file, result })
+  }
+  if (invalid.length) return res.status(400).json({ message: `Unsupported or invalid file(s): ${invalid.join(', ')}` })
+
+  const uploadedKeys = []
+  try {
+    for (const { _id, file, result } of prepared) {
+      const key = resumePoolKey(_id, result.ext)
+      await uploadObject({ key, body: file.buffer, contentType: result.mime })
+      uploadedKeys.push(key)
+    }
+  } catch (err) {
+    await Promise.all(uploadedKeys.map((key) => deleteObject(key).catch(() => {})))
+    logger.error({ err, staffId: String(req.staff._id) }, 'Resume pool bulk upload to S3 failed')
+    return res.status(502).json({ message: 'Could not upload resumes right now. Please try again.' })
+  }
+
+  const docs = prepared.map(({ _id, file, result }) => ({
+    _id,
     file: file.originalname,
-    url: `/uploads/resume-pool/${file.filename}`,
+    s3Key: resumePoolKey(_id, result.ext),
     uploadedOn: new Date(),
     uploadedBy: req.staff._id,
     status: 'pending',
   }))
 
-  const created = await Resume.insertMany(docs)
+  let created
+  try {
+    created = await Resume.insertMany(docs)
+  } catch (err) {
+    // DB write failed after the S3 uploads succeeded — clean up the orphaned
+    // objects rather than leaving them unreferenced in the bucket.
+    await Promise.all(
+      uploadedKeys.map((key) => deleteObject(key).catch((cleanupErr) => logger.error({ err: cleanupErr, key }, 'Failed to clean up orphaned resume-pool object after a failed insert')))
+    )
+    throw err
+  }
+
   await logStaffActivity(`${req.staff.name} bulk-uploaded ${created.length} resume(s) to the pool`, 'navy')
 
-  res.status(201).json({ resumes: created, count: created.length })
+  res.status(201).json({ resumes: created.map(serializePoolResume), count: created.length })
 })
 
 export const list = asyncHandler(async (req, res) => {
@@ -43,10 +94,11 @@ export const list = asyncHandler(async (req, res) => {
 
   const { data, page, limit, total } = await paginate(Resume, query, paginationParams(req), {
     sort: { uploadedOn: -1 },
+    select: '+s3Key',
     populate: ['assignedTo', 'verifiedBy'],
   })
   setPaginationHeaders(res, { page, limit, total })
-  res.json(data)
+  res.json(data.map(serializePoolResume))
 })
 
 export const stats = asyncHandler(async (req, res) => {
@@ -96,7 +148,7 @@ export const assign = asyncHandler(async (req, res) => {
   const staff = await StaffUser.findById(staffId)
   if (!staff) return res.status(404).json({ message: 'Staff account not found' })
 
-  const resume = await Resume.findById(req.params.id)
+  const resume = await Resume.findById(req.params.id).select('+s3Key')
   if (!resume) return res.status(404).json({ message: 'Resume not found' })
 
   resume.assignedTo = staff._id
@@ -107,7 +159,7 @@ export const assign = asyncHandler(async (req, res) => {
   await logStaffActivity(`${req.staff.name} assigned a resume to ${staff.name}`, 'navy')
   await notifyAssignment(staff, `A resume was assigned to you by ${req.staff.name}.`)
 
-  res.json(resume)
+  res.json(serializePoolResume(resume))
 })
 
 export const bulkAssign = asyncHandler(async (req, res) => {
@@ -135,7 +187,7 @@ export const review = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'decision must be verified, changes or rejected' })
   }
 
-  const resume = await Resume.findById(req.params.id)
+  const resume = await Resume.findById(req.params.id).select('+s3Key')
   if (!resume) return res.status(404).json({ message: 'Resume not found' })
 
   const isOwner = resume.assignedTo && resume.assignedTo.equals(req.staff._id)
@@ -152,5 +204,5 @@ export const review = asyncHandler(async (req, res) => {
 
   await logStaffActivity(`A resume was marked "${decision}" by ${req.staff.name}`, decision === 'verified' ? 'green' : 'gold')
 
-  res.json(resume)
+  res.json(serializePoolResume(resume))
 })

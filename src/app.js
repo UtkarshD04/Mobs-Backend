@@ -9,6 +9,7 @@ import { env } from './config/env.js'
 import { logger } from './config/logger.js'
 import { apiLimiter } from './middleware/rateLimit.js'
 import routes from './routes/index.js'
+import fileAccessRoutes from './routes/fileAccessRoutes.js'
 import { notFound } from './middleware/notFound.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { razorpayWebhook } from './controllers/paymentWebhookController.js'
@@ -51,7 +52,11 @@ app.use(mongoSanitize())
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
 
+// Legacy local-disk resumes uploaded before the S3 migration are still
+// served from here; every new upload goes to the private S3 bucket instead
+// and is only ever reachable through /files (short-lived, token-gated).
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+app.use('/files', apiLimiter, fileAccessRoutes)
 app.use('/api', apiLimiter, routes)
 
 app.use(notFound)

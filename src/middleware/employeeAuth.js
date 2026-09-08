@@ -18,7 +18,10 @@ export const requireEmployeeAuth = asyncHandler(async (req, res, next) => {
   // `type` claim keeps one audience's token from being replayed on the other.
   if (payload.type !== 'employee') return res.status(401).json({ message: 'Invalid or expired token' })
 
-  const employee = await Employee.findById(payload.sub)
+  // resume.s3Key/resumeHistory.s3Key are select:false by default (never sent
+  // to a client raw) — explicitly pulled in here since several employee-
+  // facing endpoints (profile, resume) need it to mint a resume access link.
+  const employee = await Employee.findById(payload.sub).select('+resume.s3Key +resumeHistory.s3Key')
   if (!employee) return res.status(401).json({ message: 'Employee no longer exists' })
   if (employee.status === 'suspended') return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
 

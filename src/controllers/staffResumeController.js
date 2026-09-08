@@ -6,8 +6,21 @@ import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
+import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
+
+// Employee docs carry `resume.s3Key`, which must never reach a client —
+// only a fresh, short-lived access link derived from it. Staff are a
+// separate access purpose from the candidate's own so a leaked link from
+// one audience can't be replayed to imply the other viewed it — though both
+// resolve to the same file.
+function withResumeAccessUrl(employeeDoc) {
+  const json = employeeDoc.toJSON()
+  json.resume = serializeResumeSubdoc(employeeDoc.resume, 'staff-resume')
+  if (json.resumeHistory) json.resumeHistory = serializeResumeHistory(employeeDoc.resumeHistory, 'staff-resume')
+  return json
+}
 
 const RESUME_DECISION_MESSAGES = {
   verified: 'Your resume has been verified by the Mzobs team.',
@@ -33,11 +46,11 @@ export const listResumeQueue = asyncHandler(async (req, res) => {
 
   const { data, page, limit, total } = await paginate(Employee, query, paginationParams(req), {
     sort: { 'resume.uploadedOn': -1 },
-    select: '-passwordHash',
+    select: '-passwordHash +resume.s3Key',
     populate: ['resume.assignedTo'],
   })
   setPaginationHeaders(res, { page, limit, total })
-  res.json(data)
+  res.json(data.map(withResumeAccessUrl))
 })
 
 export const stats = asyncHandler(async (req, res) => {
@@ -88,7 +101,7 @@ export const assign = asyncHandler(async (req, res) => {
   const staff = await StaffUser.findById(staffId)
   if (!staff) return res.status(404).json({ message: 'Staff account not found' })
 
-  const employee = await Employee.findById(req.params.employeeId)
+  const employee = await Employee.findById(req.params.employeeId).select('+resume.s3Key')
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
   if (employee.resume.status === 'none') return res.status(400).json({ message: 'This candidate has not uploaded a resume yet' })
 
@@ -101,7 +114,7 @@ export const assign = asyncHandler(async (req, res) => {
   await logStaffActivity(`${req.staff.name} assigned ${employee.name}'s resume to ${staff.name}`, 'navy')
   await notifyAssignment(staff, `${employee.name}'s resume was assigned to you by ${req.staff.name}.`)
 
-  res.json(employee.resume)
+  res.json(serializeResumeSubdoc(employee.resume, 'staff-resume'))
 })
 
 export const bulkAssign = asyncHandler(async (req, res) => {
@@ -129,7 +142,7 @@ export const reviewResume = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'decision must be verified, changes or rejected' })
   }
 
-  const employee = await Employee.findById(req.params.employeeId)
+  const employee = await Employee.findById(req.params.employeeId).select('+resume.s3Key')
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
   if (employee.resume.status === 'none') return res.status(400).json({ message: 'This employee has not uploaded a resume yet' })
 
@@ -149,5 +162,5 @@ export const reviewResume = asyncHandler(async (req, res) => {
   await logStaffActivity(`${employee.name}'s resume marked "${decision}" by ${req.staff.name}`, decision === 'verified' ? 'green' : 'gold')
   await notifyEmployee(employee, { category: 'resume', title: 'Resume review update', body: RESUME_DECISION_MESSAGES[decision] })
 
-  res.json(employee.resume)
+  res.json(serializeResumeSubdoc(employee.resume, 'staff-resume'))
 })

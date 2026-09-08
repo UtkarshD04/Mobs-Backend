@@ -36,7 +36,12 @@ export const listEligibleApplications = asyncHandler(async (req, res) => {
     .populate({
       path: 'employee',
       match: { 'resume.status': 'verified' },
-      select: 'name email phone skills experience experienceYears location resume skillTrack education projects workHistory portfolioLink',
+      // Enumerated resume subfields on purpose, not bare `resume` — see the
+      // same note in staffApplicationController.js. This response goes
+      // straight to the client, so pulling in resume.s3Key here would leak
+      // the S3 storage key.
+      select:
+        'name email phone skills experience experienceYears location resume.status resume.file resume.version resume.uploadedOn resume.score skillTrack education projects workHistory portfolioLink',
     })
     .sort({ fit: -1 })
     .limit(500)

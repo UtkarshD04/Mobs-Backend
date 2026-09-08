@@ -1,19 +1,10 @@
-import fs from 'fs'
-import path from 'path'
-import crypto from 'crypto'
 import multer from 'multer'
 
-const UPLOAD_ROOT = path.join(process.cwd(), 'uploads', 'resume-pool')
-fs.mkdirSync(UPLOAD_ROOT, { recursive: true })
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_ROOT),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`)
-  },
-})
-
+// Memory storage: files land in req.files[].buffer instead of on local
+// disk, since they go straight to S3 (see resumePoolController.js).
+// fileFilter is just a fast reject on obviously-wrong mimetypes — the real
+// content check (magic-byte sniffing) happens in the controller.
+//
 // Real-world resumes show up in more formats than a strict PDF/Word gate
 // allows — scanned photos, exported RTF/TXT, ODT from LibreOffice, etc.
 const ALLOWED_MIME = new Set([
@@ -29,7 +20,7 @@ const ALLOWED_MIME = new Set([
 ])
 
 export const uploadResumePool = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 50 },
   fileFilter: (req, file, cb) => cb(null, ALLOWED_MIME.has(file.mimetype)),
 }).array('resumes', 50)
