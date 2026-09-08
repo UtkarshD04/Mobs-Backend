@@ -45,6 +45,12 @@ function toLatestJobSummary(job) {
     track: job.track,
     vacancies: job.vacancies,
     postedDaysAgo,
+    // Raw postedOn/deadline (on top of the derived postedDaysAgo above) —
+    // needed for JobPosting structured data (datePosted/validThrough) on the
+    // Landing Frontend's public job pages. `deadline` stays free-text as
+    // recruiters enter it (see Job.js); the frontend parses it best-effort.
+    postedOn: postedOn ? new Date(postedOn).toISOString() : null,
+    deadline: job.deadline || '',
     description: job.description,
     skills: job.skills,
     benefits: job.benefits,
