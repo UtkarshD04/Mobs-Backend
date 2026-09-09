@@ -46,6 +46,9 @@ const jobSchema = new Schema(
     postedOn: { type: Date, default: null },
     updatedOn: { type: Date, default: Date.now },
     hiringTeam: { type: [String], default: [] },
+    // Flagged by Mzobs staff for roles the employer wants filled fast —
+    // powers the employee-facing "Instant hiring" section.
+    instantHiring: { type: Boolean, default: false },
   },
   { timestamps: true }
 )
@@ -56,6 +59,7 @@ const jobSchema = new Schema(
 jobSchema.index({ visibleToCandidates: 1, status: 1, postedOn: -1 })
 jobSchema.index({ visibleToCandidates: 1, status: 1, workMode: 1 })
 jobSchema.index({ visibleToCandidates: 1, status: 1, track: 1 })
+jobSchema.index({ visibleToCandidates: 1, status: 1, instantHiring: 1 })
 
 applyIdTransform(jobSchema)
 

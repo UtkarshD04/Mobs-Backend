@@ -34,6 +34,14 @@ function toLatestJobSummary(job) {
     id: job._id.toString(),
     title: job.title,
     company: job.company?.name ?? '',
+    logo: job.company?.logo ?? '',
+    // Real per-company verification signal (Company.verificationStatus) —
+    // only ever true for companies staff have actually verified, never
+    // inferred from a job simply being public. Lets the home page's
+    // Featured opportunities card show a "Verified employer" marker without
+    // fabricating one for every listing (see TrustStrip.jsx's blanket
+    // "verified employers" claim, which is marketing copy, not per-job data).
+    verified: job.company?.verificationStatus === 'verified',
     location: job.location,
     experience: job.experienceMin != null && job.experienceMax != null ? `${job.experienceMin}–${job.experienceMax} yrs` : '',
     experienceMin: job.experienceMin,
