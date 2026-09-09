@@ -1,19 +1,7 @@
 import { Router } from 'express'
 import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
-<<<<<<< Updated upstream
-import { listPublicJobs, getPublicJob, getJobFacets, getJobSuggestions } from '../controllers/employeePublicJobsController.js'
+import { listPublicJobs, getPublicJob, getJobFacets, getJobSuggestions, getAppliedBasedJobs, getInstantHiringJobs } from '../controllers/employeePublicJobsController.js'
 import { getRecommendedJobs } from '../controllers/employeeRecommendationsController.js'
-=======
-import {
-  listPublicJobs,
-  getPublicJob,
-  getJobFacets,
-  getJobSuggestions,
-  getRecommendedJobs,
-  getAppliedBasedJobs,
-  getInstantHiringJobs,
-} from '../controllers/employeePublicJobsController.js'
->>>>>>> Stashed changes
 
 const router = Router()
 
@@ -24,15 +12,11 @@ const router = Router()
 router.get('/', listPublicJobs)
 router.get('/facets', getJobFacets)
 router.get('/suggestions', getJobSuggestions)
-<<<<<<< Updated upstream
-router.get('/recommended', requireEmployeeAuth, getRecommendedJobs)
-=======
 router.get('/instant-hiring', getInstantHiringJobs)
 // Personalized sections — need req.employee to score against the
 // candidate's own profile/application history. Must stay above `/:id`.
 router.get('/recommended', requireEmployeeAuth, getRecommendedJobs)
 router.get('/based-on-applies', requireEmployeeAuth, getAppliedBasedJobs)
->>>>>>> Stashed changes
 router.get('/:id', getPublicJob)
 
 export default router

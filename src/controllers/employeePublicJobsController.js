@@ -179,40 +179,6 @@ export const getJobSuggestions = asyncHandler(async (req, res) => {
   res.json({ type, query, items })
 })
 
-// "Jobs based on your profile" — scores candidate-visible jobs against the
-// employee's own skillTrack/skills/preferred-location, without needing any
-// query params. No hard filter (so a thin profile still gets results) —
-// matches sort ahead of everything else via _score.
-export const getRecommendedJobs = asyncHandler(async (req, res) => {
-  const employee = req.employee
-  const skills = (employee.skills ?? []).filter(Boolean)
-  const locations = [...new Set([employee.currentCity, ...(employee.preferredLocations ?? [])].filter(Boolean))]
-  const trackKey = employee.skillTrack?.key ?? ''
-
-  const appliedJobIds = await Application.find({ employee: employee._id }).distinct('job')
-
-  const scoreStage = {
-    $addFields: {
-      _score: {
-        $add: [
-          trackKey ? { $cond: [{ $eq: ['$track', trackKey] }, 3, 0] } : 0,
-          skills.length ? { $size: { $setIntersection: ['$skills', skills] } } : 0,
-          locations.length ? { $cond: [{ $in: ['$location', locations] }, 1, 0] } : 0,
-        ],
-      },
-    },
-  }
-
-  const jobs = await Job.aggregate([
-    { $match: { ...BASE_VISIBLE_QUERY, _id: { $nin: appliedJobIds } } },
-    scoreStage,
-    { $sort: { _score: -1, postedOn: -1 } },
-    { $limit: RECOMMENDATION_LIMIT },
-  ])
-  await Job.populate(jobs, { path: 'company', select: 'name logo' })
-  res.json(jobs.map(publicJob))
-})
-
 // "Jobs based on applies" — similar to what the candidate already applied
 // to (same track or overlapping skills), excluding jobs already applied to.
 export const getAppliedBasedJobs = asyncHandler(async (req, res) => {
