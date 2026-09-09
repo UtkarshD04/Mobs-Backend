@@ -38,13 +38,36 @@ export const applyToJob = asyncHandler(async (req, res) => {
   const existing = await Application.findOne({ employee: employee._id, job: job._id })
   if (existing) return res.status(409).json({ message: 'You have already applied to this job' })
 
+  const appliedOn = new Date()
   const application = await Application.create({
     employee: employee._id,
     job: job._id,
     status: 'new',
+    statusHistory: [{ status: 'new', changedOn: appliedOn, changedBy: 'employee' }],
     fit: fitScore(employee.skills, job.skills),
-    appliedOn: new Date(),
+    appliedOn,
   })
 
   res.status(201).json(application)
+})
+
+// Withdrawal is only offered while the application is still with Mzobs —
+// once it's been shared with the employer (or later), pulling it back isn't
+// meaningful, so the same statuses that gate the frontend's Withdraw button
+// are re-enforced here server-side.
+const WITHDRAWABLE_STATUSES = ['new', 'screening', 'shortlisted']
+
+export const withdrawApplication = asyncHandler(async (req, res) => {
+  const application = await Application.findOne({ _id: req.params.id, employee: req.employee._id })
+  if (!application) return res.status(404).json({ message: 'Application not found' })
+
+  if (!WITHDRAWABLE_STATUSES.includes(application.status)) {
+    return res.status(409).json({ message: 'This application can no longer be withdrawn' })
+  }
+
+  application.status = 'withdrawn'
+  application.statusHistory.push({ status: 'withdrawn', changedOn: new Date(), changedBy: 'employee' })
+  await application.save()
+
+  res.json(application)
 })

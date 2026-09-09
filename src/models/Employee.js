@@ -125,6 +125,13 @@ const employeeSchema = new Schema(
     expectedSalaryMin: { type: Number, default: null },
     expectedSalaryMax: { type: Number, default: null },
     preferredLocations: { type: [String], default: [] },
+    workModePreference: { type: [String], enum: ['On-site', 'Hybrid', 'Remote'], default: [] },
+    jobTypePreference: { type: [String], enum: ['Full-time', 'Part-time', 'Contract', 'Internship'], default: [] },
+    // Candidate-controlled visibility — distinct from `status` (account-level
+    // active/suspended). Powers a "not actively looking" state without
+    // touching the account itself.
+    openToOpportunities: { type: Boolean, default: true },
+    jobAlertsEnabled: { type: Boolean, default: true },
     skills: { type: [String], default: [] },
     education: { type: [educationSchema], default: [] },
     projects: { type: [projectSchema], default: [] },

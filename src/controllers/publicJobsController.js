@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
+import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 
@@ -239,4 +240,23 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
   })
 
   res.json({ tracks, freshers, remote, finance })
+})
+
+// Real, live per-city × category stats for the Landing Frontend's "Hot Jobs
+// by City" section — see hotCities.js for the aggregation itself (pure,
+// unit-tested, no DB access) and HOT_CITIES for the curated city list. One
+// query, bounded to jobs whose free-text location actually matches one of
+// those cities (not the whole public jobs collection), then reduced in JS —
+// cheaper than 60 separate city×filter round trips.
+export const getPublicHotCities = asyncHandler(async (req, res) => {
+  const jobs = await Job.find({
+    visibleToCandidates: true,
+    status: { $in: PUBLIC_STATUSES },
+    location: { $in: HOT_CITIES.map((c) => c.match) },
+  })
+    .select('location track department salaryMin salaryMax postedOn createdAt company')
+    .populate('company', 'verificationStatus')
+    .lean()
+
+  res.json({ cities: aggregateHotCities(jobs) })
 })

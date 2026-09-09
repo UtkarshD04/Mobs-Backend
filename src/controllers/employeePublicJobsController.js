@@ -8,7 +8,9 @@ import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 
 // Public/employee-safe view of a job — no fee, invoice, or internal sourcing data.
-function publicJob(job) {
+// Exported so other employee-facing controllers (saved jobs, recently viewed,
+// recommendations) can shape their job payloads identically to the job board.
+export function publicJob(job) {
   return {
     id: job._id.toString(),
     company: job.company?.name ?? '',

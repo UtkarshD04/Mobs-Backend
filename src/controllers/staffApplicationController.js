@@ -1,6 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
-import Application from '../models/Application.js'
+import Application, { APPLICATION_STATUSES } from '../models/Application.js'
 import Employee from '../models/Employee.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 
@@ -43,10 +43,11 @@ export const updateApplication = asyncHandler(async (req, res) => {
 
   const previousStatus = application.status
   if (status) {
-    if (!['new', 'screening', 'shortlisted', 'shared', 'interview', 'selected', 'rejected'].includes(status)) {
+    if (!APPLICATION_STATUSES.includes(status)) {
       return res.status(400).json({ message: 'Invalid status' })
     }
     application.status = status
+    if (status !== previousStatus) application.statusHistory.push({ status, changedOn: new Date(), changedBy: 'staff' })
   }
   if (note !== undefined) application.note = note
 

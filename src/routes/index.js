@@ -19,6 +19,9 @@ import employeeResumeRoutes from './employeeResumeRoutes.js'
 import employeeSubscriptionRoutes from './employeeSubscriptionRoutes.js'
 import employeeJobRoutes from './employeeJobRoutes.js'
 import employeeApplicationRoutes from './employeeApplicationRoutes.js'
+import employeeSavedJobRoutes from './employeeSavedJobRoutes.js'
+import employeeRecentlyViewedRoutes from './employeeRecentlyViewedRoutes.js'
+import employeeNotificationPreferenceRoutes from './employeeNotificationPreferenceRoutes.js'
 import employeeMockInterviewRoutes from './employeeMockInterviewRoutes.js'
 import employeeInterviewRoutes from './employeeInterviewRoutes.js'
 import employeeNotificationRoutes from './employeeNotificationRoutes.js'
@@ -68,6 +71,9 @@ employeeRoutes.use('/resume', employeeResumeRoutes)
 employeeRoutes.use('/subscription', employeeSubscriptionRoutes)
 employeeRoutes.use('/jobs', employeeJobRoutes)
 employeeRoutes.use('/applications', employeeApplicationRoutes)
+employeeRoutes.use('/saved-jobs', employeeSavedJobRoutes)
+employeeRoutes.use('/recently-viewed', employeeRecentlyViewedRoutes)
+employeeRoutes.use('/notification-preferences', employeeNotificationPreferenceRoutes)
 employeeRoutes.use('/mock-interview', employeeMockInterviewRoutes)
 employeeRoutes.use('/interviews', employeeInterviewRoutes)
 employeeRoutes.use('/notifications', employeeNotificationRoutes)
