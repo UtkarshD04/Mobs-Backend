@@ -116,14 +116,9 @@ export const signup = asyncHandler(async (req, res) => {
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
     return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
-  // Same "blank config = no-op" pattern as SMTP/VAPID/Razorpay/Google
-  // elsewhere in this codebase: with MSG91_AUTH_KEY unset, send-otp/verify-
-  // otp already 503 (see sendPhoneOtp/verifyPhoneOtp above), so a phoneToken
-  // could never be obtained — this would otherwise block signup entirely.
-  // The requirement re-activates on its own once MSG91 is configured.
-  if (env.msg91.authKey && (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim()))) {
-    return res.status(400).json({ message: 'Please verify your mobile number first' })
-  }
+  // Phone OTP verification is optional — proceed either way, just record
+  // whether it was actually verified.
+  const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await Employee.findOne({ email: normalizedEmail })
@@ -149,7 +144,7 @@ export const signup = asyncHandler(async (req, res) => {
     name: name.trim(),
     email: normalizedEmail,
     phone: phone.trim(),
-    phoneVerified: Boolean(env.msg91.authKey),
+    phoneVerified,
     passwordHash,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
@@ -201,11 +196,8 @@ export const googleSignup = asyncHandler(async (req, res) => {
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
     return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
-  // See the matching comment in signup() above — bypassed while MSG91 isn't
-  // configured, since a phoneToken could never be obtained otherwise.
-  if (env.msg91.authKey && (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim()))) {
-    return res.status(400).json({ message: 'Please verify your mobile number first' })
-  }
+  // See the matching comment in signup() above — OTP verification is optional.
+  const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
 
   const { googleId, email, name } = await verifyGoogleToken(credential)
 
@@ -226,7 +218,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     name: name || email,
     email,
     phone: phone.trim(),
-    phoneVerified: Boolean(env.msg91.authKey),
+    phoneVerified,
     googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation,
