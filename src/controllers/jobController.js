@@ -67,23 +67,29 @@ export const getJob = asyncHandler(async (req, res) => {
 export const createJob = asyncHandler(async (req, res) => {
   const input = pickInput(req.body)
   const submitted = req.body.status === 'pending_review'
+  const now = new Date()
 
   const job = await Job.create({
     ...input,
     company: req.company._id,
     createdBy: req.user._id,
-    status: req.body.status ?? 'draft',
+    // Submitting (as opposed to saving a draft) publishes the job straight
+    // away — no staff approval step gates candidate visibility. The fee is
+    // still owed (billing is tracked separately via feeStatus/invoices) but
+    // doesn't block the requirement from going live.
+    status: submitted ? 'sourcing' : req.body.status ?? 'draft',
+    visibleToCandidates: submitted,
     feeTotal: feeFor(input.vacancies),
     feeStatus: 'unpaid',
     resumesPromised: resumesFor(input.vacancies),
     candidatesShared: 0,
     hiresSelected: 0,
-    submittedOn: submitted ? new Date() : null,
-    postedOn: null,
-    updatedOn: new Date(),
+    submittedOn: submitted ? now : null,
+    postedOn: submitted ? now : null,
+    updatedOn: now,
   })
 
-  if (submitted) await logActivity(req.company._id, `Requirement "${job.title}" submitted to Mzobs for review`, 'navy')
+  if (submitted) await logActivity(req.company._id, `Requirement "${job.title}" is now live for candidates`, 'green')
 
   res.status(201).json(job)
 })
@@ -108,13 +114,19 @@ export const setJobStatus = asyncHandler(async (req, res) => {
   const job = await findScopedJob(req)
   if (!job) return res.status(404).json({ message: 'Job not found' })
 
-  const { status } = req.body ?? {}
-  if (!status) return res.status(400).json({ message: 'status is required' })
+  const { status: requestedStatus } = req.body ?? {}
+  if (!requestedStatus) return res.status(400).json({ message: 'status is required' })
 
+  // Submitting a draft publishes it immediately — same as createJob, no
+  // staff approval step gates candidate visibility.
+  const status = requestedStatus === 'pending_review' ? 'sourcing' : requestedStatus
   const enteringAwaitingPayment = status === 'awaiting_payment' && job.status !== 'awaiting_payment' && !job.invoiceId
 
   job.status = status
-  if (status === 'pending_review' && !job.submittedOn) job.submittedOn = new Date()
+  if (requestedStatus === 'pending_review') {
+    if (!job.submittedOn) job.submittedOn = new Date()
+    job.visibleToCandidates = true
+  }
   if (status === 'sourcing' && !job.postedOn) job.postedOn = new Date()
   job.updatedOn = new Date()
 
@@ -131,8 +143,8 @@ export const setJobStatus = asyncHandler(async (req, res) => {
 
   await job.save()
 
-  if (status === 'sourcing') await logActivity(req.company._id, `"${job.title}" released to Mzobs sourcing`, 'gold')
-  if (status === 'pending_review') await logActivity(req.company._id, `Requirement "${job.title}" submitted to Mzobs for review`, 'navy')
+  if (requestedStatus === 'pending_review') await logActivity(req.company._id, `Requirement "${job.title}" is now live for candidates`, 'green')
+  else if (status === 'sourcing') await logActivity(req.company._id, `"${job.title}" released to Mzobs sourcing`, 'gold')
 
   res.json(job)
 })

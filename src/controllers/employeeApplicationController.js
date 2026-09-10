@@ -1,6 +1,9 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
+import { logActivity } from '../utils/activityLog.js'
 import Application from '../models/Application.js'
+import Candidate from '../models/Candidate.js'
+import Batch from '../models/Batch.js'
 import Job from '../models/Job.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
@@ -48,14 +51,72 @@ export const applyToJob = asyncHandler(async (req, res) => {
     appliedOn,
   })
 
+  // Reaches the employer immediately — no staff dispatch step. Mirrors the
+  // field-copy staffBatchController.dispatchBatch used to do manually.
+  const candidate = await Candidate.create({
+    company: job.company,
+    job: job._id,
+    batch: null,
+    employee: employee._id,
+    application: application._id,
+    name: employee.name,
+    headline: employee.resumeHeadline,
+    appliedFor: job.title,
+    experienceYears: employee.experienceYears,
+    location: employee.currentCity,
+    expectedSalary: employee.expectedSalaryMax ? `₹${employee.expectedSalaryMax}` : '',
+    skills: employee.skills,
+    education: employee.education,
+    projects: employee.projects,
+    workHistory: employee.workHistory,
+    portfolioLink: employee.portfolioLink,
+    email: employee.email,
+    phone: employee.phone,
+    resumeVerified: true,
+    identityVerified: true,
+    source: 'Mzobs Verified Pool',
+    stage: 'shared',
+    sharedOn: appliedOn,
+  })
+
+  // Mark the application as already delivered so it never gets picked up a
+  // second time by staff's legacy dispatchBatch flow (which would otherwise
+  // create a duplicate Candidate for it — see listEligibleApplications'
+  // status filter in staffBatchController.js).
+  application.status = 'shared'
+  application.statusHistory.push({ status: 'shared', changedOn: appliedOn, changedBy: 'employee' })
+  await application.save()
+
+  job.candidatesShared = (job.candidatesShared ?? 0) + 1
+  await job.save()
+
+  // A Batch may or may not exist yet (it's created when staff records the
+  // job's sourcing-fee payment) — it's a delivery-tracking record here, not
+  // a gate, so link into it opportunistically when present.
+  const batch = await Batch.findOne({ job: job._id })
+  if (batch) {
+    candidate.batch = batch._id
+    await candidate.save()
+    batch.dispatches.push({ application: application._id, dispatchedOn: appliedOn })
+    batch.resumesDelivered += 1
+    if (batch.resumesDelivered >= batch.resumesPromised) {
+      batch.status = 'delivered'
+      batch.deliveredOn = new Date()
+    }
+    await batch.save()
+  }
+
+  await logActivity(job.company, `New application received for "${job.title}"`, 'green')
+
   res.status(201).json(application)
 })
 
-// Withdrawal is only offered while the application is still with Mzobs —
-// once it's been shared with the employer (or later), pulling it back isn't
-// meaningful, so the same statuses that gate the frontend's Withdraw button
-// are re-enforced here server-side.
-const WITHDRAWABLE_STATUSES = ['new', 'screening', 'shortlisted']
+// Applications reach the employer instantly (status goes straight to
+// 'shared' in applyToJob), so 'shared' has to stay withdrawable too — once
+// past that, the employer has started acting on it (interview/offer/etc.),
+// which is where withdrawal stops making sense. Re-enforced here to match
+// the same statuses the frontend's Withdraw button gates on.
+const WITHDRAWABLE_STATUSES = ['new', 'screening', 'shortlisted', 'shared']
 
 export const withdrawApplication = asyncHandler(async (req, res) => {
   const application = await Application.findOne({ _id: req.params.id, employee: req.employee._id })
@@ -68,6 +129,14 @@ export const withdrawApplication = asyncHandler(async (req, res) => {
   application.status = 'withdrawn'
   application.statusHistory.push({ status: 'withdrawn', changedOn: new Date(), changedBy: 'employee' })
   await application.save()
+
+  // The employer already has a Candidate record for this application (it's
+  // created synchronously in applyToJob) — reflect the withdrawal there too
+  // instead of leaving a stale "shared" row with no applicant behind it.
+  await Candidate.findOneAndUpdate(
+    { application: application._id, stage: { $nin: ['hired', 'rejected'] } },
+    { stage: 'rejected', rejectionReason: 'Candidate withdrew this application' }
+  )
 
   res.json(application)
 })
