@@ -17,8 +17,15 @@ export const listCompanies = asyncHandler(async (req, res) => {
   }
 
   const { data, page, limit, total } = await paginate(Company, query, paginationParams(req), { sort: { createdAt: -1 } })
+
+  // Company has no email field of its own — the KYC contact email admins
+  // actually want is the company's Admin-role login account, so it's joined
+  // in here rather than added to the Company schema.
+  const admins = await User.find({ company: { $in: data.map((c) => c._id) }, role: 'Admin' }, 'company email').lean()
+  const adminEmailByCompany = new Map(admins.map((u) => [u.company.toString(), u.email]))
+
   setPaginationHeaders(res, { page, limit, total })
-  res.json(data)
+  res.json(data.map((c) => ({ ...c.toJSON(), adminEmail: adminEmailByCompany.get(c._id.toString()) ?? null })))
 })
 
 // Manually onboards a company, same temp-password pattern as
@@ -57,7 +64,8 @@ export const createCompany = asyncHandler(async (req, res) => {
 export const getCompany = asyncHandler(async (req, res) => {
   const company = await Company.findById(req.params.id)
   if (!company) return res.status(404).json({ message: 'Company not found' })
-  res.json(company)
+  const admin = await User.findOne({ company: company._id, role: 'Admin' }, 'email').lean()
+  res.json({ ...company.toJSON(), adminEmail: admin?.email ?? null })
 })
 
 export const verifyCompany = asyncHandler(async (req, res) => {

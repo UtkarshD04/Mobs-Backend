@@ -1,11 +1,13 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { verifyWebhookSignature } from '../utils/razorpaySignature.js'
 import { creditJobPayment } from '../utils/creditJobPayment.js'
+import { activateEmployerSubscription } from '../utils/activateEmployerSubscription.js'
 import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
 import Employee from '../models/Employee.js'
 import Job from '../models/Job.js'
 import Payment from '../models/Payment.js'
+import EmployerSubscription from '../models/EmployerSubscription.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 
 // Asynchronous source of truth: Razorpay calls this directly, independent of
@@ -50,6 +52,11 @@ export const razorpayWebhook = asyncHandler(async (req, res) => {
         const job = await Job.findById(payment.job)
         if (job && job.feeStatus !== 'paid') {
           await creditJobPayment(job, payment)
+        }
+      } else if (payment.purpose === 'employer_subscription') {
+        const subscription = await EmployerSubscription.findById(payment.employerSubscription)
+        if (subscription && subscription.status !== 'active') {
+          await activateEmployerSubscription(subscription, payment)
         }
       }
     }

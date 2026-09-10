@@ -10,6 +10,8 @@ import offerRoutes from './offerRoutes.js'
 import notificationRoutes from './notificationRoutes.js'
 import pushRoutes from './pushRoutes.js'
 import billingRoutes from './billingRoutes.js'
+import employerSubscriptionRoutes from './employerSubscriptionRoutes.js'
+import employerPaymentsRoutes from './employerPaymentsRoutes.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
@@ -61,6 +63,8 @@ employerRoutes.use('/offers', offerRoutes)
 employerRoutes.use('/notifications', notificationRoutes)
 employerRoutes.use('/push', pushRoutes)
 employerRoutes.use('/billing', billingRoutes)
+employerRoutes.use('/subscription', employerSubscriptionRoutes)
+employerRoutes.use('/payments', employerPaymentsRoutes)
 employerRoutes.use('/dashboard', dashboardRoutes)
 employerRoutes.use('/support', supportRoutes)
 

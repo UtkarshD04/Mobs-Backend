@@ -82,4 +82,19 @@ export const env = {
     // relying on it for interstate transactions (which should be IGST).
     state: process.env.GST_STATE ?? 'Uttar Pradesh',
   },
+  // The single launch plan: "MZOBS Employer Annual". Unlike `gst` above
+  // (which treats the employee subscription fee as tax-inclusive),
+  // EMPLOYER_ANNUAL_PLAN_GST_MODE=exclusive means the amount below is the
+  // pre-tax base price — GST is computed and added on top at checkout, and
+  // the final payable amount is what actually gets charged via Razorpay.
+  // Never guess this at the UI layer; everything reads it from here.
+  employerPlan: {
+    planCode: process.env.EMPLOYER_ANNUAL_PLAN_CODE ?? 'EMPLOYER_ANNUAL_999',
+    planName: process.env.EMPLOYER_ANNUAL_PLAN_NAME ?? 'MZOBS Employer Annual',
+    billingPeriod: 'annual',
+    // Base price before tax, in paise. Default 99900 paise = ₹999.
+    amountPaise: Number(process.env.EMPLOYER_ANNUAL_PLAN_AMOUNT_PAISE ?? 99900),
+    gstMode: process.env.EMPLOYER_ANNUAL_PLAN_GST_MODE ?? 'exclusive', // 'inclusive' | 'exclusive'
+    gstRatePercent: Number(process.env.EMPLOYER_ANNUAL_PLAN_GST_RATE ?? process.env.GST_RATE_PERCENT ?? 18),
+  },
 }

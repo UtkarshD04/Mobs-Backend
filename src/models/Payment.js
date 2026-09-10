@@ -3,11 +3,14 @@ import { applyIdTransform } from '../utils/toJSON.js'
 
 const paymentSchema = new Schema(
   {
-    purpose: { type: String, enum: ['employee_subscription', 'employer_job_fee'], required: true },
+    purpose: { type: String, enum: ['employee_subscription', 'employer_job_fee', 'employer_subscription'], required: true },
     // Exactly one of these is set, based on `purpose`.
     employee: { type: Schema.Types.ObjectId, ref: 'Employee', default: null, index: true },
     company: { type: Schema.Types.ObjectId, ref: 'Company', default: null, index: true },
     job: { type: Schema.Types.ObjectId, ref: 'Job', default: null, index: true },
+    // Set only for purpose: 'employer_subscription' — the EmployerSubscription
+    // period this payment is activating/renewing.
+    employerSubscription: { type: Schema.Types.ObjectId, ref: 'EmployerSubscription', default: null, index: true },
     razorpayOrderId: { type: String, required: true, unique: true },
     razorpayPaymentId: { type: String, default: null, index: true, sparse: true },
     // HMAC signature Razorpay returns for the completed payment — kept for
