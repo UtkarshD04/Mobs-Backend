@@ -11,6 +11,9 @@ import notificationRoutes from './notificationRoutes.js'
 import pushRoutes from './pushRoutes.js'
 import billingRoutes from './billingRoutes.js'
 import employerSubscriptionRoutes from './employerSubscriptionRoutes.js'
+import { createGuestSubscriptionOrder } from '../controllers/employerSubscriptionController.js'
+import { guestSubscribeSignup } from '../controllers/authController.js'
+import { paymentLimiter } from '../middleware/rateLimit.js'
 import employerPaymentsRoutes from './employerPaymentsRoutes.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
@@ -63,6 +66,11 @@ employerRoutes.use('/offers', offerRoutes)
 employerRoutes.use('/notifications', notificationRoutes)
 employerRoutes.use('/push', pushRoutes)
 employerRoutes.use('/billing', billingRoutes)
+// Public (no auth) — the pricing page's "pay, no signup form" flow, mounted
+// ahead of the authed /subscription router below since these two need to
+// work for a visitor who has no account/token yet.
+employerRoutes.post('/subscription/guest-order', paymentLimiter, createGuestSubscriptionOrder)
+employerRoutes.post('/subscription/guest-verify', paymentLimiter, guestSubscribeSignup)
 employerRoutes.use('/subscription', employerSubscriptionRoutes)
 employerRoutes.use('/payments', employerPaymentsRoutes)
 employerRoutes.use('/dashboard', dashboardRoutes)

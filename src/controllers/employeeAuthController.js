@@ -9,26 +9,9 @@ import { verifyGoogleToken } from '../utils/googleAuth.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
+import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
 
-const PHONE_TOKEN_PURPOSE = 'phone-verify'
 const PHONE_RE = /^[6-9]\d{9}$/
-
-function issuePhoneToken(phone) {
-  return jwt.sign({ phone, purpose: PHONE_TOKEN_PURPOSE }, env.jwtSecret, { expiresIn: '15m' })
-}
-
-// Confirms `phoneToken` (minted by verifyPhoneOtp) actually attests to
-// `phone` before letting signup proceed — a signup can't just claim a
-// phone was verified, it has to present the token that proves it.
-function checkPhoneToken(phoneToken, phone) {
-  let decoded
-  try {
-    decoded = jwt.verify(phoneToken, env.jwtSecret)
-  } catch {
-    return false
-  }
-  return decoded.purpose === PHONE_TOKEN_PURPOSE && decoded.phone === phone
-}
 
 function issueToken(employee) {
   return jwt.sign({ sub: employee._id.toString(), type: 'employee' }, env.jwtSecret, {

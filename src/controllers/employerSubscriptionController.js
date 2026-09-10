@@ -42,6 +42,51 @@ function buildMockOrder(amountPaise, receipt) {
   return null
 }
 
+// POST /api/employer/subscription/guest-order — same as createSubscriptionOrder
+// below, but for a visitor who doesn't have a company/account yet (the
+// "verify phone, pay, account is created for you" flow off the public
+// pricing page). No req.company/req.user — the Payment row is created with
+// company: null and only gets attached once guestSubscribeSignup (see
+// authController.js) verifies the payment and creates the account.
+export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
+  const pricing = getEmployerPlanPricing()
+  const receipt = `empsub_guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+  let order = buildMockOrder(pricing.totalAmountPaise, receipt)
+  if (!order) {
+    const rzpOrder = await getRazorpayClient().orders.create({
+      amount: pricing.totalAmountPaise,
+      currency: pricing.currency,
+      receipt,
+      notes: { purpose: 'employer_subscription', guest: 'true', planCode: pricing.planCode },
+    })
+    order = { orderId: rzpOrder.id, amount: rzpOrder.amount, currency: rzpOrder.currency, mock: false }
+  }
+
+  await Payment.create({
+    purpose: 'employer_subscription',
+    company: null,
+    razorpayOrderId: order.orderId,
+    amount: order.amount / 100,
+    originalAmount: pricing.baseAmountPaise / 100,
+    currency: order.currency,
+    status: 'created',
+    receipt,
+    isMock: order.mock,
+  })
+
+  res.status(201).json({
+    orderId: order.orderId,
+    amount: order.amount,
+    currency: order.currency,
+    mock: order.mock,
+    keyId: env.razorpayKeyId,
+    name: 'Mzobs',
+    description: `${pricing.planName} — 1 year`,
+    pricing,
+  })
+})
+
 // POST /api/employer/subscription/order — creates a Razorpay order for the
 // fixed, server-computed plan price. The amount never comes from the client.
 export const createSubscriptionOrder = asyncHandler(async (req, res) => {

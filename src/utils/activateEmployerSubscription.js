@@ -1,6 +1,6 @@
 import { logActivity } from './activityLog.js'
 
-const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000
+export const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000
 
 // Shared by the verify-payment endpoint (browser round-trip) and the
 // Razorpay webhook (server-to-server) so a subscription only ever gets

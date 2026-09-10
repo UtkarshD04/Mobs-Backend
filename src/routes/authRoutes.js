@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth.js'
-import { authLimiter } from '../middleware/rateLimit.js'
-import { login, signup, googleLogin, googleSignup, getMe, updateMe, forgotPassword, resetPassword } from '../controllers/authController.js'
+import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
+import { login, signup, googleLogin, googleSignup, getMe, updateMe, forgotPassword, resetPassword, verifyPhoneWidget } from '../controllers/authController.js'
 
 const router = Router()
 
+router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
 router.post('/login', authLimiter, login)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)

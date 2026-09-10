@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -6,8 +7,19 @@ import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
+import { verifyWidgetAccessToken } from '../utils/msg91.js'
+import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
+import { getRazorpayClient } from '../config/razorpay.js'
+import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
+import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
+import { ONE_YEAR_MS } from '../utils/activateEmployerSubscription.js'
+import { logActivity } from '../utils/activityLog.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
+import EmployerSubscription from '../models/EmployerSubscription.js'
+import Payment from '../models/Payment.js'
+
+const PHONE_RE = /^[6-9]\d{9}$/
 
 function issueToken(user, company) {
   return jwt.sign(
@@ -160,6 +172,140 @@ export const googleSignup = asyncHandler(async (req, res) => {
   })
 
   res.status(201).json(authResponse(user, company))
+})
+
+// Companion to the employee side's verifyPhoneWidget — same MSG91 widget
+// flow, same phoneToken shape, just mounted under the employer's public
+// auth routes. Used both by ordinary employer signup and by the guest
+// pay-then-account-is-created flow below.
+export const verifyPhoneWidget = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+
+  const { phone, accessToken } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof accessToken !== 'string' || !accessToken.trim()) {
+    return res.status(400).json({ message: 'Phone and access token are required' })
+  }
+
+  const verifiedIdentifier = await verifyWidgetAccessToken(accessToken.trim())
+  if (!verifiedIdentifier || !verifiedIdentifier.includes(phone.trim())) {
+    return res.status(400).json({ message: 'Could not verify this access token for the given phone number' })
+  }
+
+  res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
+// POST /api/employer/subscription/guest-verify — the "verify phone, pay,
+// account is created for you" flow off the public pricing page. No signup
+// form: a phone-verified visitor pays the plan price and this single call
+// both settles the payment and creates their Company + Admin User + an
+// already-active EmployerSubscription in one shot. Since there's no email
+// they chose, a generated placeholder + one-time password is returned so
+// they still have a way back in later (same "shown once" pattern as
+// staffCompanyController.createCompany's tempPassword) — the dashboard
+// redirect uses the returned token so they don't need it immediately.
+export const guestSubscribeSignup = asyncHandler(async (req, res) => {
+  const { phone, phoneToken, razorpay_order_id, razorpay_payment_id, razorpay_signature, mockOrderId } = req.body ?? {}
+
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
+    return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
+  }
+  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
+    return res.status(400).json({ message: 'Please verify your mobile number first' })
+  }
+
+  const orderId = razorpay_order_id ?? mockOrderId
+  if (!orderId) return res.status(400).json({ message: 'Missing payment details' })
+
+  const payment = await Payment.findOne({ razorpayOrderId: orderId, purpose: 'employer_subscription' })
+  if (!payment) return res.status(404).json({ message: 'Order not found' })
+
+  // Already claimed — either a retry of this same call (payment succeeded,
+  // the response was lost/interrupted before reaching the client) or an
+  // orderId that was never a guest order to begin with. Only hand back a
+  // token if the verified phone actually matches that account's own phone,
+  // so a guessed/observed orderId can't be used to claim an unrelated
+  // account without also controlling its phone number.
+  if (payment.company) {
+    const existingUser = await User.findOne({ company: payment.company, phone: phone.trim() }).populate('company')
+    if (existingUser) return res.status(201).json(authResponse(existingUser, existingUser.company))
+    return res.status(409).json({ message: 'This order is not available for guest checkout.' })
+  }
+
+  if (payment.status !== 'paid') {
+    if (razorpay_order_id) {
+      if (!razorpay_payment_id || !razorpay_signature) return res.status(400).json({ message: 'Missing payment details' })
+      if (payment.status !== 'created') return res.status(400).json({ message: 'This order can no longer be verified' })
+      if (!verifyOrderPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+        payment.status = 'failed'
+        await payment.save()
+        return res.status(400).json({ message: 'Payment verification failed' })
+      }
+      const captured = await getRazorpayClient().payments.fetch(razorpay_payment_id)
+      if (captured.order_id !== razorpay_order_id || captured.status !== 'captured') {
+        payment.status = 'failed'
+        await payment.save()
+        return res.status(400).json({ message: 'Payment was not captured' })
+      }
+      payment.razorpayPaymentId = razorpay_payment_id
+      payment.razorpaySignature = razorpay_signature
+    } else {
+      // Dev-only mock path, mirrors confirmMockSubscriptionPayment — only
+      // ever touches a payment actually flagged isMock, hard-blocked in prod.
+      if (process.env.NODE_ENV === 'production') return res.status(503).json({ message: 'Mock payments are disabled in production' })
+      if (!payment.isMock) return res.status(404).json({ message: 'Mock order not found' })
+      payment.razorpayPaymentId = `mock_payment_${Date.now()}`
+    }
+    payment.status = 'paid'
+    payment.paidAt = new Date()
+    await payment.save()
+  }
+
+  const existingPhoneUser = await User.findOne({ phone: phone.trim() })
+  if (existingPhoneUser) {
+    return res.status(409).json({ message: 'An account already exists for this phone number. Please sign in instead.' })
+  }
+
+  const company = await Company.create({ name: 'New Employer Account' })
+
+  const tempPassword = crypto.randomBytes(9).toString('base64url')
+  const passwordHash = await bcrypt.hash(tempPassword, 10)
+  const placeholderEmail = `employer-${company._id.toString()}@guest.mzobs.com`
+  const user = await User.create({
+    company: company._id,
+    name: 'New Employer',
+    email: placeholderEmail,
+    phone: phone.trim(),
+    passwordHash,
+    role: 'Admin',
+    status: 'active',
+    lastActiveAt: new Date(),
+  })
+
+  const pricing = getEmployerPlanPricing()
+  const startsAt = new Date()
+  const expiresAt = new Date(startsAt.getTime() + ONE_YEAR_MS)
+  const subscription = await EmployerSubscription.create({
+    company: company._id,
+    planCode: pricing.planCode,
+    planName: pricing.planName,
+    amount: payment.amount * 100,
+    currency: payment.currency,
+    billingPeriod: pricing.billingPeriod,
+    status: 'active',
+    startsAt,
+    expiresAt,
+    paymentProvider: 'razorpay',
+    razorpayOrderId: payment.razorpayOrderId,
+    razorpayPaymentId: payment.razorpayPaymentId,
+  })
+
+  payment.company = company._id
+  payment.employerSubscription = subscription._id
+  await payment.save()
+
+  await logActivity(company._id, `${pricing.planName} activated (guest checkout) — valid until ${expiresAt.toLocaleDateString('en-IN')}`, 'green')
+
+  res.status(201).json({ ...authResponse(user, company), tempPassword, placeholderEmail })
 })
 
 export const forgotPassword = asyncHandler(async (req, res) => {
