@@ -8,7 +8,7 @@ import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../uti
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
 import { verifyWidgetAccessToken } from '../utils/msg91.js'
-import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
+import { issuePhoneToken } from '../utils/phoneToken.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
@@ -176,8 +176,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
 
 // Companion to the employee side's verifyPhoneWidget — same MSG91 widget
 // flow, same phoneToken shape, just mounted under the employer's public
-// auth routes. Used both by ordinary employer signup and by the guest
-// pay-then-account-is-created flow below.
+// auth routes.
 export const verifyPhoneWidget = asyncHandler(async (req, res) => {
   if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
 
@@ -194,23 +193,20 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
   res.json({ phoneToken: issuePhoneToken(phone.trim()) })
 })
 
-// POST /api/employer/subscription/guest-verify — the "verify phone, pay,
-// account is created for you" flow off the public pricing page. No signup
-// form: a phone-verified visitor pays the plan price and this single call
-// both settles the payment and creates their Company + Admin User + an
-// already-active EmployerSubscription in one shot. Since there's no email
-// they chose, a generated placeholder + one-time password is returned so
-// they still have a way back in later (same "shown once" pattern as
+// POST /api/employer/subscription/guest-verify — the "just your phone
+// number, pay, account is created for you" flow off the public pricing
+// page. No signup form and no OTP: this call both settles the payment and
+// creates their Company + Admin User + an already-active
+// EmployerSubscription in one shot. Since there's no email they chose, a
+// generated placeholder + one-time password is returned so they still have
+// a way back in later (same "shown once" pattern as
 // staffCompanyController.createCompany's tempPassword) — the dashboard
 // redirect uses the returned token so they don't need it immediately.
 export const guestSubscribeSignup = asyncHandler(async (req, res) => {
-  const { phone, phoneToken, razorpay_order_id, razorpay_payment_id, razorpay_signature, mockOrderId } = req.body ?? {}
+  const { phone, razorpay_order_id, razorpay_payment_id, razorpay_signature, mockOrderId } = req.body ?? {}
 
   if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
     return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
-  }
-  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
-    return res.status(400).json({ message: 'Please verify your mobile number first' })
   }
 
   const orderId = razorpay_order_id ?? mockOrderId
@@ -221,10 +217,9 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
 
   // Already claimed — either a retry of this same call (payment succeeded,
   // the response was lost/interrupted before reaching the client) or an
-  // orderId that was never a guest order to begin with. Only hand back a
-  // token if the verified phone actually matches that account's own phone,
-  // so a guessed/observed orderId can't be used to claim an unrelated
-  // account without also controlling its phone number.
+  // orderId that was never a guest order to begin with. Phone is unverified
+  // here, so this is a courtesy match for retries, not an access control —
+  // it hands back a token only when the typed phone happens to match.
   if (payment.company) {
     const existingUser = await User.findOne({ company: payment.company, phone: phone.trim() }).populate('company')
     if (existingUser) return res.status(201).json(authResponse(existingUser, existingUser.company))
