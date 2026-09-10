@@ -93,7 +93,9 @@ const employeeSchema = new Schema(
     passwordHash: { type: String, required: false, select: false },
     googleId: { type: String, default: null, index: true, sparse: true },
     experience: { type: String, enum: ['fresher', 'experienced'], default: 'fresher' },
-    graduation: { type: String, required: true },
+    // No longer collected at signup — kept optional, filled in later from
+    // the profile page if the employee chooses to.
+    graduation: { type: String, default: '' },
     status: { type: String, enum: ['active', 'suspended'], default: 'active' },
     lastActiveAt: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null, select: false },

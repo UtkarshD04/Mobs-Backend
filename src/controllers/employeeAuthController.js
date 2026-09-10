@@ -106,9 +106,9 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
 
 export const signup = asyncHandler(async (req, res) => {
   const { name, email, phone, password, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
-  const required = { name, email, phone, password, graduation }
+  const required = { name, email, phone, password }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
-    return res.status(400).json({ message: 'Name, email, phone, password and graduation are required' })
+    return res.status(400).json({ message: 'Name, email, phone and password are required' })
   }
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
@@ -147,7 +147,7 @@ export const signup = asyncHandler(async (req, res) => {
     phoneVerified,
     passwordHash,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
-    graduation,
+    graduation: typeof graduation === 'string' ? graduation.trim() : '',
     currentCity: typeof city === 'string' ? city.trim() : '',
     state: typeof state === 'string' ? state.trim() : '',
     pincode: typeof pincode === 'string' ? pincode.trim() : '',
@@ -189,9 +189,8 @@ export const googleLogin = asyncHandler(async (req, res) => {
 
 export const googleSignup = asyncHandler(async (req, res) => {
   const { credential, phone, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
-  const required = { phone, graduation }
-  if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
-    return res.status(400).json({ message: 'Phone and graduation are required' })
+  if (typeof phone !== 'string' || !phone.trim()) {
+    return res.status(400).json({ message: 'Phone is required' })
   }
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
     return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
@@ -221,7 +220,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     phoneVerified,
     googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
-    graduation,
+    graduation: typeof graduation === 'string' ? graduation.trim() : '',
     currentCity: typeof city === 'string' ? city.trim() : '',
     state: typeof state === 'string' ? state.trim() : '',
     pincode: typeof pincode === 'string' ? pincode.trim() : '',
