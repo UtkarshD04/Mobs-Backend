@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { verifyWebhookSignature } from '../utils/razorpaySignature.js'
 import { creditJobPayment } from '../utils/creditJobPayment.js'
 import { activateEmployerSubscription } from '../utils/activateEmployerSubscription.js'
+import { activateCvCreditPurchase } from '../utils/creditWallet.js'
 import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
 import Employee from '../models/Employee.js'
@@ -31,7 +32,15 @@ export const razorpayWebhook = asyncHandler(async (req, res) => {
 
   if (event.event === 'payment.captured' && entity?.order_id) {
     const payment = await Payment.findOne({ razorpayOrderId: entity.order_id })
-    if (payment && payment.status !== 'paid') {
+
+    if (payment?.purpose === 'employer_cv_credit') {
+      // activateCvCreditPurchase owns its own atomic 'created' -> 'paid'
+      // compare-and-swap (see creditWallet.js), unlike the generic
+      // read-then-save flip below — so it's called directly here instead of
+      // going through that flip, and stays idempotent no matter whether the
+      // verify-payment endpoint or this webhook lands first.
+      await activateCvCreditPurchase(payment._id, { razorpayPaymentId: entity.id })
+    } else if (payment && payment.status !== 'paid') {
       payment.razorpayPaymentId = entity.id
       payment.status = 'paid'
       payment.paidAt = new Date()

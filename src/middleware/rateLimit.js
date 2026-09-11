@@ -55,3 +55,15 @@ export const paymentLimiter = rateLimit({
   message: { message: 'Too many payment attempts. Please try again later.' },
   store: makeStore('rl:payment:'),
 })
+
+// CV unlock spends a credit (real money, ₹25 each) — capped well above
+// normal browsing use but tight enough to blunt a script trying to drain an
+// employer's whole credit balance in a burst.
+export const unlockLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many unlock requests. Please slow down and try again shortly.' },
+  store: makeStore('rl:unlock:'),
+})

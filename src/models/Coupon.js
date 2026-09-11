@@ -10,9 +10,9 @@ const couponSchema = new Schema(
     // Only used when discountType is 'percentage' — caps the rupee amount knocked off a large order.
     maxDiscountAmount: { type: Number, default: null },
     minOrderAmount: { type: Number, default: 0 },
-    // The only payable, fixed-price flow today — kept as an enum so a future
-    // second payment surface (e.g. employer job fee) is an explicit addition.
-    appliesTo: { type: String, enum: ['employee_subscription'], default: 'employee_subscription' },
+    // Which payment surface this coupon can be redeemed on — kept as an
+    // enum so a new payment surface is always an explicit addition here.
+    appliesTo: { type: String, enum: ['employee_subscription', 'employer_cv_credit'], default: 'employee_subscription' },
     usageLimit: { type: Number, default: null }, // null = unlimited total redemptions
     usedCount: { type: Number, default: 0 },
     expiresAt: { type: Date, default: null },
