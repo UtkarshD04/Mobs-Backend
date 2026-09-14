@@ -3,7 +3,7 @@ import { applyIdTransform } from '../utils/toJSON.js'
 
 const paymentSchema = new Schema(
   {
-    purpose: { type: String, enum: ['employee_subscription', 'employer_job_fee', 'employer_subscription'], required: true },
+    purpose: { type: String, enum: ['employee_subscription', 'employer_job_fee', 'employer_subscription', 'employer_cv_credit'], required: true },
     // Exactly one of these is set, based on `purpose`.
     employee: { type: Schema.Types.ObjectId, ref: 'Employee', default: null, index: true },
     company: { type: Schema.Types.ObjectId, ref: 'Company', default: null, index: true },
@@ -11,6 +11,11 @@ const paymentSchema = new Schema(
     // Set only for purpose: 'employer_subscription' — the EmployerSubscription
     // period this payment is activating/renewing.
     employerSubscription: { type: Schema.Types.ObjectId, ref: 'EmployerSubscription', default: null, index: true },
+    // Set only for purpose: 'employer_cv_credit' — which pack was bought and
+    // how many credits it grants, fixed at order-creation time so a later
+    // repricing of the pack never changes what an already-created order pays out.
+    creditPlan: { type: Schema.Types.ObjectId, ref: 'CreditPlan', default: null },
+    creditsGranted: { type: Number, default: null },
     razorpayOrderId: { type: String, required: true, unique: true },
     razorpayPaymentId: { type: String, default: null, index: true, sparse: true },
     // HMAC signature Razorpay returns for the completed payment — kept for

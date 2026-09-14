@@ -15,6 +15,10 @@ import { createGuestSubscriptionOrder } from '../controllers/employerSubscriptio
 import { guestSubscribeSignup } from '../controllers/authController.js'
 import { paymentLimiter } from '../middleware/rateLimit.js'
 import employerPaymentsRoutes from './employerPaymentsRoutes.js'
+import employerCreditRoutes from './employerCreditRoutes.js'
+import employerUnlocksRoutes from './employerUnlocksRoutes.js'
+import { listCreditPlans } from '../controllers/employerCvCreditController.js'
+import { requireAuth } from '../middleware/auth.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
@@ -44,6 +48,7 @@ import staffEmployeeRoutes from './staffEmployeeRoutes.js'
 import staffUserRoutes from './staffUserRoutes.js'
 import staffPaymentRoutes from './staffPaymentRoutes.js'
 import staffCouponRoutes from './staffCouponRoutes.js'
+import staffCvCreditRoutes from './staffCvCreditRoutes.js'
 import staffTeamRoutes from './staffTeamRoutes.js'
 import staffDashboardRoutes from './staffDashboardRoutes.js'
 import staffShortlistRoutes from './staffShortlistRoutes.js'
@@ -73,6 +78,9 @@ employerRoutes.post('/subscription/guest-order', paymentLimiter, createGuestSubs
 employerRoutes.post('/subscription/guest-verify', paymentLimiter, guestSubscribeSignup)
 employerRoutes.use('/subscription', employerSubscriptionRoutes)
 employerRoutes.use('/payments', employerPaymentsRoutes)
+employerRoutes.use('/credits', employerCreditRoutes)
+employerRoutes.get('/plans', requireAuth, listCreditPlans)
+employerRoutes.use('/unlocks', employerUnlocksRoutes)
 employerRoutes.use('/dashboard', dashboardRoutes)
 employerRoutes.use('/support', supportRoutes)
 
@@ -105,6 +113,7 @@ staffRoutes.use('/employees', staffEmployeeRoutes)
 staffRoutes.use('/users', staffUserRoutes)
 staffRoutes.use('/payments', staffPaymentRoutes)
 staffRoutes.use('/coupons', staffCouponRoutes)
+staffRoutes.use('/cv-credits', staffCvCreditRoutes)
 staffRoutes.use('/team', staffTeamRoutes)
 staffRoutes.use('/dashboard', staffDashboardRoutes)
 staffRoutes.use('/shortlist', staffShortlistRoutes)

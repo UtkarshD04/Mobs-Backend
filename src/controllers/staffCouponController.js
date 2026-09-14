@@ -4,6 +4,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import Coupon from '../models/Coupon.js'
 
 const DISCOUNT_TYPES = ['percentage', 'flat']
+const APPLIES_TO_VALUES = ['employee_subscription', 'employer_cv_credit']
 
 // Picks only the fields the client sent (so a PATCH can't accidentally wipe
 // out unrelated ones) and coerces them to the right type. Throws on a bad
@@ -24,7 +25,11 @@ function normalizeCouponInput(body, { partial = false } = {}) {
   }
   if (body.expiresAt !== undefined) out.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
   if (body.isActive !== undefined) out.isActive = !!body.isActive
+  if (body.appliesTo !== undefined) out.appliesTo = body.appliesTo
 
+  if (out.appliesTo !== undefined && !APPLIES_TO_VALUES.includes(out.appliesTo)) {
+    throw new Error('appliesTo must be employee_subscription or employer_cv_credit')
+  }
   if (!partial && !out.code) throw new Error('code is required')
   if (!partial && !DISCOUNT_TYPES.includes(out.discountType)) throw new Error('discountType must be percentage or flat')
   if (out.discountType !== undefined && !DISCOUNT_TYPES.includes(out.discountType)) throw new Error('discountType must be percentage or flat')
@@ -48,7 +53,9 @@ function normalizeCouponInput(body, { partial = false } = {}) {
 }
 
 export const listCoupons = asyncHandler(async (req, res) => {
-  const { data, page, limit, total } = await paginate(Coupon, {}, paginationParams(req), { sort: { createdAt: -1 } })
+  const { appliesTo } = req.query
+  const query = appliesTo && APPLIES_TO_VALUES.includes(appliesTo) ? { appliesTo } : {}
+  const { data, page, limit, total } = await paginate(Coupon, query, paginationParams(req), { sort: { createdAt: -1 } })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
 })
