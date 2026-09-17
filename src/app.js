@@ -13,6 +13,7 @@ import fileAccessRoutes from './routes/fileAccessRoutes.js'
 import { notFound } from './middleware/notFound.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { razorpayWebhook } from './controllers/paymentWebhookController.js'
+import { googleMobileCallback } from './controllers/googleBridgeController.js'
 
 export const app = express()
 
@@ -51,6 +52,7 @@ app.use(express.json({ limit: '1mb' }))
 app.use(mongoSanitize())
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
+app.get('/mobile/google-callback', googleMobileCallback)
 
 // Legacy local-disk resumes uploaded before the S3 migration are still
 // served from here; every new upload goes to the private S3 bucket instead
