@@ -129,6 +129,9 @@ export const signup = asyncHandler(async (req, res) => {
   const existing = await Employee.findOne({ email: normalizedEmail })
   if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
 
+  const existingPhone = await Employee.findOne({ phone: phone.trim() })
+  if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
+
   // If the marketing site's "pay first" flow already collected the ₹99 fee,
   // it hands back the order id here — claim that unlinked payment onto the
   // new account so it starts out already subscribed. A missing/invalid/
@@ -210,6 +213,9 @@ export const googleSignup = asyncHandler(async (req, res) => {
 
   const existing = await Employee.findOne({ email })
   if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+
+  const existingPhone = await Employee.findOne({ phone: phone.trim() })
+  if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
 
   let claimedPayment = null
   if (typeof paymentOrderId === 'string' && paymentOrderId.trim()) {
