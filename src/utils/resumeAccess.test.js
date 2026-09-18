@@ -1,7 +1,14 @@
 import 'dotenv/config'
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { employeeResumeKey, resumePoolKey, buildResumeAccessPath, serializeResumeSubdoc, serializeResumeHistory } from './resumeAccess.js'
+import {
+  employeeResumeKey,
+  resumePoolKey,
+  buildResumeAccessPath,
+  buildLegacyResumeAccessPath,
+  serializeResumeSubdoc,
+  serializeResumeHistory,
+} from './resumeAccess.js'
 import { verifyFileAccessToken } from './fileAccessToken.js'
 
 describe('employeeResumeKey / resumePoolKey', () => {
@@ -26,6 +33,19 @@ describe('buildResumeAccessPath', () => {
   })
 })
 
+describe('buildLegacyResumeAccessPath', () => {
+  test('wraps a legacy /uploads/... path in the same kind of token-gated /files/resume/:token link', () => {
+    const url = buildLegacyResumeAccessPath('/uploads/resumes/legacy-123.pdf', 'legacy-123.pdf', 'employee-resume')
+    assert.match(url, /^\/files\/resume\/[\w-]+\.[\w-]+\.[\w-]+$/)
+
+    const token = url.replace('/files/resume/', '')
+    const payload = verifyFileAccessToken(token)
+    assert.equal(payload.localPath, '/uploads/resumes/legacy-123.pdf')
+    assert.equal(payload.filename, 'legacy-123.pdf')
+    assert.equal(payload.s3Key, undefined)
+  })
+})
+
 describe('serializeResumeSubdoc', () => {
   test('strips s3Key and replaces it with a fresh url — the storage key never reaches the client', () => {
     const out = serializeResumeSubdoc({ file: 'resume.pdf', s3Key: 'candidates/CAND_1025/resume/v1.pdf', status: 'verified' }, 'employee-resume')
@@ -39,9 +59,12 @@ describe('serializeResumeSubdoc', () => {
     assert.equal(out.url, '')
   })
 
-  test('leaves a legacy static /uploads/... url untouched when there is no s3Key (pre-migration resume)', () => {
+  test('wraps a legacy static /uploads/... url in a token-gated link when there is no s3Key (pre-migration resume) — there is no more unauthenticated /uploads static mount to fall back on', () => {
     const out = serializeResumeSubdoc({ file: 'old-resume.pdf', url: '/uploads/resumes/legacy-123.pdf', status: 'verified' }, 'employee-resume')
-    assert.equal(out.url, '/uploads/resumes/legacy-123.pdf')
+    assert.match(out.url, /^\/files\/resume\//)
+    const token = out.url.replace('/files/resume/', '')
+    const payload = verifyFileAccessToken(token)
+    assert.equal(payload.localPath, '/uploads/resumes/legacy-123.pdf')
   })
 
   test('passes through null/undefined unchanged', () => {

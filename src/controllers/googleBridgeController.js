@@ -8,13 +8,21 @@ export function googleMobileCallback(req, res) {
   // Overrides helmet's default CSP for this one response — the redirect can
   // only happen from an inline script, since the fragment isn't available
   // server-side to bake into a server-rendered redirect.
-  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'")
+  res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'")
   res.type('html').send(`<!doctype html>
 <html>
   <head><meta charset="utf-8" /><title>Signing in…</title></head>
   <body>
+    <!-- Android Custom Tabs / ASWebAuthenticationSession sometimes silently
+         block a scheme navigation that isn't tied to a user gesture on this
+         page (a bare location.replace() on load can get swallowed, leaving
+         the tab stuck). The visible link below is a fallback the user can
+         tap directly — a real tap always gets through. -->
+    <a id="continueLink" href="#" style="font-family:sans-serif;font-size:18px">Tap here to continue</a>
     <script>
-      window.location.replace('mzobs://redirect' + window.location.hash);
+      var target = 'mzobs://redirect' + window.location.hash;
+      document.getElementById('continueLink').href = target;
+      window.location.replace(target);
     </script>
   </body>
 </html>`)

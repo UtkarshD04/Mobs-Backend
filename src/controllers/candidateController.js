@@ -6,7 +6,7 @@ import Batch from '../models/Batch.js'
 import Employee from '../models/Employee.js'
 import ResumeAccessLog from '../models/ResumeAccessLog.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
-import { buildResumeAccessPath } from '../utils/resumeAccess.js'
+import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { hasActiveEmployerSubscription } from '../utils/employerSubscriptionAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { logger } from '../config/logger.js'
@@ -71,7 +71,8 @@ async function resolveCandidateResumeUrl(candidate, purpose) {
   const employee = await Employee.findById(candidate.employee).select('resume.status resume.file resume.url +resume.s3Key')
   const resume = employee?.resume
   if (!resume || resume.status !== 'verified') return null
-  return resume.s3Key ? buildResumeAccessPath(resume.s3Key, resume.file, purpose) : resume.url ?? null
+  if (resume.s3Key) return buildResumeAccessPath(resume.s3Key, resume.file, purpose)
+  return resume.url ? buildLegacyResumeAccessPath(resume.url, resume.file, purpose) : null
 }
 
 export const listCandidates = asyncHandler(async (req, res) => {
@@ -214,7 +215,11 @@ export const getCandidateResumeUrl = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Resume not available for this candidate' })
   }
 
-  const url = resume.s3Key ? buildResumeAccessPath(resume.s3Key, resume.file, 'employer-resume') : resume.url ?? null
+  const url = resume.s3Key
+    ? buildResumeAccessPath(resume.s3Key, resume.file, 'employer-resume')
+    : resume.url
+      ? buildLegacyResumeAccessPath(resume.url, resume.file, 'employer-resume')
+      : null
   if (!url) return res.status(404).json({ message: 'Resume not available for this candidate' })
 
   await ResumeAccessLog.create({

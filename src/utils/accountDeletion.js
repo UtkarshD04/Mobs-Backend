@@ -1,3 +1,5 @@
+import path from 'path'
+import { unlink } from 'fs/promises'
 import Employee from '../models/Employee.js'
 import SavedJob from '../models/SavedJob.js'
 import RecentlyViewedJob from '../models/RecentlyViewedJob.js'
@@ -33,11 +35,32 @@ async function deleteResumeObjects(employee) {
   }
 }
 
+// Same as deleteResumeObjects, for a pre-S3-migration resume that only has
+// a legacy static `/uploads/...` path (no s3Key) — otherwise deleting the
+// account would leave that file behind on disk forever with nothing left
+// referencing it. Same path-containment check as fileAccessController.js,
+// since these paths ultimately come from the same stored `url` field.
+const UPLOADS_ROOT = path.join(process.cwd(), 'uploads')
+
+async function deleteLegacyResumeFiles(employee) {
+  const urls = [employee.resume?.url, ...(employee.resumeHistory ?? []).map((r) => r.url)].filter(Boolean)
+  for (const url of urls) {
+    const resolved = path.join(UPLOADS_ROOT, url.replace(/^\/?uploads\/?/, ''))
+    if (resolved !== UPLOADS_ROOT && !resolved.startsWith(UPLOADS_ROOT + path.sep)) continue
+    try {
+      await unlink(resolved)
+    } catch (err) {
+      if (err.code !== 'ENOENT') logger.error({ err, url }, 'Failed to delete legacy resume file during account deletion')
+    }
+  }
+}
+
 export async function deleteEmployeeAccount(employeeId) {
   const employee = await Employee.findById(employeeId).select('+resume.s3Key +resumeHistory.s3Key')
   if (!employee) return false
 
   await deleteResumeObjects(employee)
+  await deleteLegacyResumeFiles(employee)
 
   const conversationIds = await Conversation.find({ employee: employee._id }).distinct('_id')
   await Promise.all([

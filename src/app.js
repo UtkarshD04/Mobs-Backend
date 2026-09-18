@@ -1,4 +1,3 @@
-import path from 'path'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
@@ -18,8 +17,31 @@ import { googleMobileCallback } from './controllers/googleBridgeController.js'
 export const app = express()
 
 // Sits behind a reverse proxy/load balancer in any real deploy — needed for
-// rate-limiting and logging to see the real client IP.
+// rate-limiting and logging to see the real client IP, and for
+// `X-Forwarded-Proto` below to be trusted.
 app.set('trust proxy', 1)
+
+// INFRASTRUCTURE VERIFICATION REQUIRED: this repo cannot see the actual
+// production reverse proxy/load balancer config, so it can't confirm HTTP
+// is redirected to HTTPS there. This is a defense-in-depth backend guard,
+// not a replacement for that check — see the deploy runbook for the exact
+// verification commands to run against the production server.
+//
+// It only ever fires when the proxy explicitly reports (via
+// X-Forwarded-Proto, trusted because of `trust proxy` above) that a request
+// arrived over plain HTTP. A direct request to this process with no such
+// header (e.g. an internal health check bypassing the proxy) is left alone,
+// so this can't break anything that never went through the proxy. When the
+// proxy already terminates TLS and forwards `X-Forwarded-Proto: https`
+// (the expected setup), this is a permanent no-op.
+if (env.isProduction) {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] === 'http') {
+      return res.redirect(308, `https://${req.headers.host}${req.originalUrl}`)
+    }
+    next()
+  })
+}
 
 app.use(helmet())
 app.use(compression())
@@ -54,10 +76,20 @@ app.use(mongoSanitize())
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
 app.get('/mobile/google-callback', googleMobileCallback)
 
-// Legacy local-disk resumes uploaded before the S3 migration are still
-// served from here; every new upload goes to the private S3 bucket instead
-// and is only ever reachable through /files (short-lived, token-gated).
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
+// Every resume (S3-backed or a pre-migration legacy local file) is only
+// ever reachable through /files — short-lived, token-gated (see
+// fileAccessController.js). There is no unauthenticated static mount
+// serving raw file paths.
+//
+// The staff frontends embed these in an inline resume-viewer iframe, which
+// runs on a different origin from the API — override helmet's default
+// X-Frame-Options/CSP frame-ancestors (SAMEORIGIN) that would otherwise
+// block that, scoped to just our own known frontend origins.
+app.use('/files', (_req, res, next) => {
+  res.removeHeader('X-Frame-Options')
+  res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${env.corsOrigin.join(' ')}`)
+  next()
+})
 app.use('/files', apiLimiter, fileAccessRoutes)
 app.use('/api', apiLimiter, routes)
 

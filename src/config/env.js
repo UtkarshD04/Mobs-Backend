@@ -5,6 +5,8 @@ const required = (name) => {
 }
 
 export const env = {
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  isProduction: process.env.NODE_ENV === 'production',
   port: Number(process.env.PORT ?? 4000),
   mongoUri: required('MONGO_URI'),
   jwtSecret: required('JWT_SECRET'),
