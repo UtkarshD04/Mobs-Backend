@@ -152,6 +152,10 @@ const employeeSchema = new Schema(
   { timestamps: true }
 )
 
+employeeSchema.virtual('isPremium').get(function () {
+  return this.subscription?.status === 'paid'
+})
+
 applyIdTransform(employeeSchema)
 
 export default model('Employee', employeeSchema)

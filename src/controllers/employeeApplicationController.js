@@ -13,6 +13,15 @@ function fitScore(employeeSkills = [], jobSkills = []) {
   return Math.round((matches / jobSkills.length) * 100)
 }
 
+// Free-plan cap on total (lifetime) applications — premium is unlimited.
+// Withdrawn applications still count: withdrawing doesn't refund the slot,
+// same as a spent credit elsewhere in this app.
+export const FREE_APPLICATION_LIMIT = 5
+
+export async function countApplications(employeeId) {
+  return Application.countDocuments({ employee: employeeId })
+}
+
 export const listApplications = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Application, { employee: req.employee._id }, paginationParams(req), {
     sort: { appliedOn: -1 },
@@ -35,6 +44,16 @@ export const applyToJob = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: 'Your resume must be verified before you can apply' })
   }
 
+  if (!employee.isPremium) {
+    const applicationCount = await countApplications(employee._id)
+    if (applicationCount >= FREE_APPLICATION_LIMIT) {
+      return res.status(403).json({
+        message: `Free accounts can apply to up to ${FREE_APPLICATION_LIMIT} jobs. Upgrade to premium for unlimited applications.`,
+        code: 'FREE_APPLICATION_LIMIT_REACHED',
+      })
+    }
+  }
+
   const job = await Job.findOne({ _id: jobId, visibleToCandidates: true, status: { $in: ['sourcing', 'delivered'] } })
   if (!job) return res.status(404).json({ message: 'Job not found' })
 
@@ -49,6 +68,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
     statusHistory: [{ status: 'new', changedOn: appliedOn, changedBy: 'employee' }],
     fit: fitScore(employee.skills, job.skills),
     appliedOn,
+    premium: employee.isPremium,
   })
 
   // Reaches the employer immediately — no staff dispatch step. Mirrors the
@@ -77,6 +97,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
     source: 'Mzobs Verified Pool',
     stage: 'shared',
     sharedOn: appliedOn,
+    premium: employee.isPremium,
   })
 
   // Mark the application as already delivered so it never gets picked up a

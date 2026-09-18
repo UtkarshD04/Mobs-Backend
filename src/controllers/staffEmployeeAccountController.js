@@ -4,12 +4,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Employee from '../models/Employee.js'
-import Application from '../models/Application.js'
-import Conversation from '../models/Conversation.js'
-import EmployeeNotification from '../models/EmployeeNotification.js'
-import MockInterview from '../models/MockInterview.js'
-import SupportTicket from '../models/SupportTicket.js'
-import Candidate from '../models/Candidate.js'
+import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
 
 export const listEmployees = asyncHandler(async (req, res) => {
   const { search, status } = req.query
@@ -77,28 +72,18 @@ export const setEmployeeStatus = asyncHandler(async (req, res) => {
   res.json({ id: employee._id.toString(), status: employee.status })
 })
 
-// Hard delete cascades to records that exist solely to serve this employee's
-// own account (applications, conversations, in-app notifications, mock
-// interviews, their own support tickets). Financial records (Payment) and
-// the employer-facing shared-profile snapshot (Candidate) are left as
-// historical records — same convention deleteCompany already follows for
-// its own non-User dependents — with Candidate.employee nulled so it
-// doesn't keep a broken reference.
+// Same cascade as the employee's own self-service delete (deleteAccount in
+// employeeProfileController.js) and the public deletion page
+// (accountDeletionController.js) — utils/accountDeletion.js is the one
+// place that cascade is defined, per Play Store's Account Deletion policy.
 export const deleteEmployee = asyncHandler(async (req, res) => {
   const employee = await Employee.findById(req.params.employeeId)
   if (!employee) return res.status(404).json({ message: 'Employee not found' })
 
-  await Promise.all([
-    Application.deleteMany({ employee: employee._id }),
-    Conversation.deleteMany({ employee: employee._id }),
-    EmployeeNotification.deleteMany({ employee: employee._id }),
-    MockInterview.deleteMany({ employee: employee._id }),
-    SupportTicket.deleteMany({ employee: employee._id }),
-    Candidate.updateMany({ employee: employee._id }, { employee: null }),
-  ])
-  await employee.deleteOne()
+  const name = employee.name
+  await deleteEmployeeAccount(employee._id)
 
-  await logStaffActivity(`${req.staff.name} deleted ${employee.name}'s employee account`, 'gold')
+  await logStaffActivity(`${req.staff.name} deleted ${name}'s employee account`, 'gold')
 
   res.json({ id: req.params.employeeId })
 })

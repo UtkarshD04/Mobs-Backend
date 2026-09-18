@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import { paginationParams, setPaginationHeaders } from '../utils/paginate.js'
 import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
+import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import { matchRank, buildSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES } from '../config/jobSuggestionsFallback.js'
 import Job from '../models/Job.js'
@@ -54,6 +55,12 @@ export const listPublicJobs = asyncHandler(async (req, res) => {
   const matchingCompanyIdsForQ = await resolveMatchingCompanyIds(filters.q)
   const query = buildJobQuery(filters, { matchingCompanyIdsForQ })
   const { page, limit, skip } = paginationParams(req)
+
+  if (filters.sort === 'nearest' && isValidCoord(filters.lat, filters.lng)) {
+    const { jobs, total } = await nearbyJobsPage(Job, query, { lat: filters.lat, lng: filters.lng, page, limit })
+    setPaginationHeaders(res, { page, limit, total })
+    return res.json(jobs.map(publicJob))
+  }
 
   if (filters.sort === 'relevance' && filters.q.length) {
     const titleRegex = new RegExp(filters.q.map(escapeRegex).join('|'), 'i')

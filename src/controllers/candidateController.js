@@ -85,7 +85,7 @@ export const listCandidates = asyncHandler(async (req, res) => {
     query.$or = [{ name: regex }, { appliedFor: regex }, { skills: regex }]
   }
 
-  const { data, page, limit, total } = await paginate(Candidate, query, paginationParams(req), { sort: { sharedOn: -1 } })
+  const { data, page, limit, total } = await paginate(Candidate, query, paginationParams(req), { sort: { premium: -1, sharedOn: -1 } })
   setPaginationHeaders(res, { page, limit, total })
   res.json(await redactList(req.company._id, data))
 })

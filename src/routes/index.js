@@ -58,6 +58,7 @@ import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 import publicJobRoutes from './publicJobRoutes.js'
+import accountDeletionRoutes from './accountDeletionRoutes.js'
 
 const employerRoutes = Router()
 employerRoutes.use('/auth', authRoutes)
@@ -129,5 +130,6 @@ router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
 router.use('/push', publicPushRoutes)
 router.use('/jobs', publicJobRoutes)
+router.use('/account-deletion', accountDeletionRoutes)
 
 export default router

@@ -28,7 +28,9 @@ export const SALARY_RANGES = {
 }
 
 export const POSTED_WITHIN_DAYS = [1, 3, 7, 30]
-export const SORT_OPTIONS = ['newest', 'salary_desc', 'salary_asc', 'relevance']
+// 'nearest' only takes effect when the request also carries valid lat/lng
+// (see parseJobFilters below) — falls back to 'newest' otherwise.
+export const SORT_OPTIONS = ['newest', 'salary_desc', 'salary_asc', 'relevance', 'nearest']
 // Caps how many comma-separated q/location terms one request can carry (a
 // multi-tag search box on the frontend) — keeps the alternation regex built
 // in buildJobQuery small and bounded regardless of what a client sends.
@@ -82,6 +84,12 @@ export function parseJobFilters(query = {}) {
     companyIds: parseCsv(query.company).filter((id) => OBJECT_ID_RE.test(id)),
     ids: parseCsv(query.ids).filter((id) => OBJECT_ID_RE.test(id)),
     sort: SORT_OPTIONS.includes(query.sort) ? query.sort : 'newest',
+    // Device/browser geolocation, sent only when the candidate opted in and
+    // only meaningful together with sort=nearest — validated properly by
+    // isValidCoord (utils/geo.js) at the point of use, this is just a lenient
+    // numeric parse so an absent/malformed pair doesn't throw here.
+    lat: query.lat !== undefined && Number.isFinite(Number(query.lat)) ? Number(query.lat) : null,
+    lng: query.lng !== undefined && Number.isFinite(Number(query.lng)) ? Number(query.lng) : null,
   }
 }
 

@@ -3,6 +3,7 @@ import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STA
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
+import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 
@@ -100,6 +101,15 @@ export const listLatestJobs = asyncHandler(async (req, res) => {
   const matchingCompanyIdsForQ = await resolveMatchingCompanyIds(filters.q)
   const query = buildJobQuery(filters, { matchingCompanyIdsForQ })
   const { page, limit, skip } = teaserPaginationParams(req)
+
+  if (filters.sort === 'nearest' && isValidCoord(filters.lat, filters.lng)) {
+    const { jobs, total } = await nearbyJobsPage(Job, query, { lat: filters.lat, lng: filters.lng, page, limit })
+    res.set('X-Total-Count', String(total))
+    res.set('X-Page', String(page))
+    res.set('X-Limit', String(limit))
+    return res.json(jobs.map(toLatestJobSummary))
+  }
+
   const sort = buildSortStage(filters)
 
   const [jobs, total] = await Promise.all([

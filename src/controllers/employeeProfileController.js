@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
+import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
 
 const PROFILE_FIELDS = [
   'name',
@@ -67,4 +68,14 @@ export const updateProfile = asyncHandler(async (req, res) => {
   await req.employee.save()
 
   res.json(serializeProfile(req.employee))
+})
+
+// Self-service delete — Play Store's Account Deletion policy requires this
+// in-app path alongside the public one (accountDeletionController.js);
+// both share the same cascade in utils/accountDeletion.js, as does the
+// staff-triggered deleteEmployee in staffEmployeeAccountController.js.
+export const deleteAccount = asyncHandler(async (req, res) => {
+  const id = req.employee._id
+  await deleteEmployeeAccount(id)
+  res.json({ id: id.toString() })
 })
