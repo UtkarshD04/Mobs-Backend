@@ -116,9 +116,14 @@ export const signup = asyncHandler(async (req, res) => {
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
     return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
-  // Phone OTP verification is optional — proceed either way, just record
-  // whether it was actually verified.
+  // Phone OTP verification is required once MSG91 is actually configured on
+  // this deployment — on one that isn't, requiring it would block signup
+  // entirely, so it stays optional there (same no-op-degrade pattern as the
+  // other MSG91/Google/Razorpay/SMTP integrations).
   const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
+  if (env.msg91.authKey && !phoneVerified) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
+  }
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await Employee.findOne({ email: normalizedEmail })
@@ -195,8 +200,11 @@ export const googleSignup = asyncHandler(async (req, res) => {
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
     return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
   }
-  // See the matching comment in signup() above — OTP verification is optional.
+  // See the matching comment in signup() above — required once MSG91 is configured.
   const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
+  if (env.msg91.authKey && !phoneVerified) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
+  }
 
   const { googleId, email, name } = await verifyGoogleToken(credential)
 
