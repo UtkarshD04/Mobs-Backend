@@ -84,6 +84,33 @@ export const verifyPhoneOtp = asyncHandler(async (req, res) => {
   res.json({ phoneToken: issuePhoneToken(phone.trim()) })
 })
 
+// Passwordless login for the mobile app's phone-first flow: OTP verification
+// alone (a valid phoneToken) is enough to sign an *existing* account in — no
+// password anywhere. A 404 here just means the number isn't registered yet,
+// which the client reads as "show the signup details step" rather than an
+// error.
+export const phoneLogin = asyncHandler(async (req, res) => {
+  const { phone, phoneToken } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
+    return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
+  }
+  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
+  }
+
+  const employee = await Employee.findOne({ phone: phone.trim() })
+  if (!employee) return res.status(404).json({ message: 'No account found for this mobile number' })
+
+  if (employee.status === 'suspended') {
+    return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+  }
+
+  employee.lastActiveAt = new Date()
+  await employee.save()
+
+  res.json(authResponse(employee))
+})
+
 // Companion to verifyPhoneOtp, for the website's MSG91 *widget* flow
 // instead of the mobile app's direct OTP API flow — same end result (a
 // phoneToken), different proof: MSG91 confirms the widget's access-token
@@ -106,11 +133,16 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
 
 export const signup = asyncHandler(async (req, res) => {
   const { name, email, phone, password, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
-  const required = { name, email, phone, password }
+  const required = { name, email, phone }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
-    return res.status(400).json({ message: 'Name, email, phone and password are required' })
+    return res.status(400).json({ message: 'Name, email and phone are required' })
   }
-  if (password.length < 8) {
+  // Password is optional — the mobile app's phone-first flow never collects
+  // one (OTP verification is the only credential), while the website still
+  // sends one. Employee.passwordHash is already `required: false` for
+  // exactly this reason (Google signup has never set one either).
+  const hasPassword = typeof password === 'string' && password.length > 0
+  if (hasPassword && password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
   }
   if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
@@ -147,7 +179,7 @@ export const signup = asyncHandler(async (req, res) => {
     })
   }
 
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = hasPassword ? await bcrypt.hash(password, 10) : undefined
   const employee = await Employee.create({
     name: name.trim(),
     email: normalizedEmail,

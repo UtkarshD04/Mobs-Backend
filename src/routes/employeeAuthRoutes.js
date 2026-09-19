@@ -3,6 +3,7 @@ import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
 import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
 import {
   login,
+  phoneLogin,
   signup,
   googleLogin,
   googleSignup,
@@ -21,6 +22,7 @@ router.post('/send-otp', otpLimiter, sendPhoneOtp)
 router.post('/verify-otp', otpLimiter, verifyPhoneOtp)
 router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
 router.post('/login', authLimiter, login)
+router.post('/phone-login', authLimiter, phoneLogin)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)
