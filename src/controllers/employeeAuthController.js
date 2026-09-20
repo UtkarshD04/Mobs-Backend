@@ -262,7 +262,15 @@ export const sendEmailOtp = asyncHandler(async (req, res) => {
     // Mail server down / bad SMTP credentials / blocked port. Say so plainly instead of a
     // generic 500, put the real reason in the logs, and drop the code so the 30-second
     // cooldown doesn't lock the person out of trying again.
-    logger.error({ err, to: address }, 'Could not send email sign-in code (check SMTP_HOST/PORT/USER/PASS)')
+    // Never log the password itself — just enough to spot a wrong user or a stray space/quote.
+    const smtpDiagnostics = {
+      smtpHost: env.smtp.host,
+      smtpPort: env.smtp.port,
+      smtpUser: env.smtp.user,
+      smtpPassLength: env.smtp.pass.length,
+      smtpPassHasWhitespaceOrQuote: /[\s'"]/.test(env.smtp.pass),
+    }
+    logger.error({ err, to: address, ...smtpDiagnostics }, 'Could not send email sign-in code (check SMTP_HOST/PORT/USER/PASS)')
     await EmailOtp.deleteOne({ email: address })
     return res.status(503).json({ message: 'We could not send the code right now. Please try again in a moment.' })
   }
