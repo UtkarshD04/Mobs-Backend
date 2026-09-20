@@ -1,3 +1,4 @@
+import { Expo } from 'expo-server-sdk'
 import { asyncHandler } from '../utils/asyncHandler.js'
 
 // getDoc(req) returns the authenticated recipient doc — req.employee /
@@ -6,10 +7,30 @@ export function createPushHandlers(getDoc) {
   const registerExpoToken = asyncHandler(async (req, res) => {
     const { token } = req.body ?? {}
     if (typeof token !== 'string' || !token.trim()) return res.status(400).json({ message: 'token is required' })
+    if (!Expo.isExpoPushToken(token)) return res.status(400).json({ message: 'token is not a valid Expo push token' })
 
     const doc = getDoc(req)
+    // A push token identifies one physical device. If someone else signed in on this
+    // phone before (and never signed out cleanly), their account still holds the same
+    // token, and their notifications would keep landing on this person's phone. Only
+    // the account that registered it most recently keeps it.
+    await doc.constructor.updateMany({ pushTokens: token, _id: { $ne: doc._id } }, { $pull: { pushTokens: token } })
+
     if (!doc.pushTokens.includes(token)) {
       doc.pushTokens.push(token)
+      await doc.save()
+    }
+    res.status(204).end()
+  })
+
+  // Called on sign-out so this phone stops receiving the account's notifications.
+  const unregisterExpoToken = asyncHandler(async (req, res) => {
+    const { token } = req.body ?? {}
+    if (typeof token !== 'string' || !token.trim()) return res.status(400).json({ message: 'token is required' })
+
+    const doc = getDoc(req)
+    if (doc.pushTokens.includes(token)) {
+      doc.pushTokens = doc.pushTokens.filter((t) => t !== token)
       await doc.save()
     }
     res.status(204).end()
@@ -40,5 +61,5 @@ export function createPushHandlers(getDoc) {
     res.status(204).end()
   })
 
-  return { registerExpoToken, subscribeWebPush, unsubscribeWebPush }
+  return { registerExpoToken, unregisterExpoToken, subscribeWebPush, unsubscribeWebPush }
 }

@@ -9,6 +9,7 @@ export async function notifyEmployee(employee, { category, title, body }) {
   if (prefs && prefs[category]?.inApp === false) return null
 
   const notification = await EmployeeNotification.create({ employee: employee._id, category, title, body })
-  await sendPush(employee, { title: notification.title, body: notification.body })
+  // `data` rides along with the push so the app can open the right screen when it's tapped.
+  await sendPush(employee, { title: notification.title, body: notification.body, data: { category, notificationId: notification._id.toString() } })
   return notification
 }
