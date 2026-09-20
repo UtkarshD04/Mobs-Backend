@@ -110,6 +110,8 @@ const employeeSchema = new Schema(
     // Profile — collected across the onboarding wizard / profile editor
     phone: { type: String, default: '' },
     phoneVerified: { type: Boolean, default: false },
+    // True once the address was proven with an emailed code (or came from Google).
+    emailVerified: { type: Boolean, default: false },
     dob: { type: String, default: '' },
     gender: { type: String, default: '' },
     maritalStatus: { type: String, default: '' },

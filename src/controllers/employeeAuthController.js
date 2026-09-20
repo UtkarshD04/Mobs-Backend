@@ -10,6 +10,19 @@ import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
 import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
+import EmailOtp from '../models/EmailOtp.js'
+import {
+  EMAIL_RE,
+  EMAIL_OTP_TTL_MS,
+  EMAIL_OTP_MAX_ATTEMPTS,
+  EMAIL_OTP_RESEND_MS,
+  generateEmailOtp,
+  hashEmailOtp,
+  emailOtpMatches,
+  emailOtpMessage,
+  issueEmailToken,
+  checkEmailToken,
+} from '../utils/emailOtp.js'
 
 const PHONE_RE = /^[6-9]\d{9}$/
 
@@ -26,6 +39,7 @@ function employeeSummary(employee) {
     email: employee.email,
     phone: employee.phone,
     phoneVerified: employee.phoneVerified,
+    emailVerified: employee.emailVerified,
     experience: employee.experience,
     graduation: employee.graduation,
     initials: initialsOf(employee.name),
@@ -132,7 +146,7 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
 })
 
 export const signup = asyncHandler(async (req, res) => {
-  const { name, email, phone, password, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
+  const { name, email, phone, password, experience, graduation, city, state, pincode, paymentOrderId, phoneToken, emailToken } = req.body ?? {}
   const required = { name, email, phone }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'Name, email and phone are required' })
@@ -159,7 +173,7 @@ export const signup = asyncHandler(async (req, res) => {
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await Employee.findOne({ email: normalizedEmail })
-  if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+  if (existing) return res.status(409).json({ message: 'An account with this email already exists. Use "Continue with Email" to sign in.' })
 
   const existingPhone = await Employee.findOne({ phone: phone.trim() })
   if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
@@ -185,6 +199,7 @@ export const signup = asyncHandler(async (req, res) => {
     email: normalizedEmail,
     phone: phone.trim(),
     phoneVerified,
+    emailVerified: typeof emailToken === 'string' && checkEmailToken(emailToken, normalizedEmail),
     passwordHash,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation: typeof graduation === 'string' ? graduation.trim() : '',
@@ -202,6 +217,83 @@ export const signup = asyncHandler(async (req, res) => {
   }
 
   res.status(201).json(authResponse(employee))
+})
+
+// Email sign-in, the counterpart of the phone flow: send a 6-digit code to the
+// address, verify it, then email-login (existing account) or signup (new one).
+// Never reveals whether an account exists for the address.
+export const sendEmailOtp = asyncHandler(async (req, res) => {
+  const { email } = req.body ?? {}
+  if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ message: 'Enter a valid email address' })
+  }
+  if (!env.smtp.host && env.isProduction) return res.status(503).json({ message: 'Email verification is not configured' })
+
+  const address = email.toLowerCase().trim()
+  const existing = await EmailOtp.findOne({ email: address })
+  if (existing && Date.now() - existing.lastSentAt.getTime() < EMAIL_OTP_RESEND_MS) {
+    return res.status(429).json({ message: 'Please wait a few seconds before asking for another code' })
+  }
+
+  const code = generateEmailOtp()
+  await EmailOtp.findOneAndUpdate(
+    { email: address },
+    { codeHash: hashEmailOtp(address, code), attempts: 0, lastSentAt: new Date(), expiresAt: new Date(Date.now() + EMAIL_OTP_TTL_MS) },
+    { upsert: true }
+  )
+  await sendMail({ to: address, ...emailOtpMessage(code) })
+
+  res.json({ message: 'Code sent' })
+})
+
+export const verifyEmailOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body ?? {}
+  if (typeof email !== 'string' || !EMAIL_RE.test(email.trim()) || typeof otp !== 'string' || !/^\d{6}$/.test(otp.trim())) {
+    return res.status(400).json({ message: 'Email and the 6-digit code are required' })
+  }
+
+  const address = email.toLowerCase().trim()
+  const record = await EmailOtp.findOne({ email: address })
+  if (!record || record.expiresAt.getTime() < Date.now()) {
+    return res.status(400).json({ message: 'That code has expired. Please request a new one.' })
+  }
+  if (record.attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+    await record.deleteOne()
+    return res.status(400).json({ message: 'Too many wrong attempts. Please request a new code.' })
+  }
+  if (!emailOtpMatches(address, otp.trim(), record.codeHash)) {
+    record.attempts += 1
+    await record.save()
+    return res.status(400).json({ message: 'Incorrect code' })
+  }
+
+  await record.deleteOne() // single use
+  res.json({ emailToken: issueEmailToken(address) })
+})
+
+// Signs an existing account in with a verified email. A 404 means no account uses
+// this address yet, which the app reads as "collect name and mobile number".
+export const emailLogin = asyncHandler(async (req, res) => {
+  const { email, emailToken } = req.body ?? {}
+  if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ message: 'Enter a valid email address' })
+  }
+  if (typeof emailToken !== 'string' || !checkEmailToken(emailToken, email)) {
+    return res.status(400).json({ message: 'Please verify your email with the code before continuing' })
+  }
+
+  const employee = await Employee.findOne({ email: email.toLowerCase().trim() })
+  if (!employee) return res.status(404).json({ message: 'No account found for this email' })
+
+  if (employee.status === 'suspended') {
+    return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+  }
+
+  employee.emailVerified = true
+  employee.lastActiveAt = new Date()
+  await employee.save()
+
+  res.json(authResponse(employee))
 })
 
 // Signs in an existing employee account via a Google ID token. Deliberately

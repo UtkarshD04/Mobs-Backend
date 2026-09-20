@@ -36,6 +36,19 @@ export const apiLimiter = rateLimit({
 // Each OTP send is a billed SMS, so this is capped much tighter than the
 // general auth limiter — keyed by IP same as the others (no per-phone key
 // available pre-parse), good enough to blunt casual abuse.
+// Email codes are already protected per address (30s between sends, 5 wrong guesses per
+// code), so the per-IP cap here only has to stop bulk abuse — and can be looser than the
+// SMS one, which costs money per send and would otherwise lock out a typo, a resend and a
+// retry from the same office/mobile-carrier IP.
+export const emailOtpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many code requests. Please try again in a few minutes.' },
+  store: makeStore('rl:email-otp:'),
+})
+
 export const otpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 5,
