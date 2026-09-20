@@ -52,6 +52,11 @@ export const env = {
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
   // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  // App-store review login (see utils/reviewLogin.js). Both blank = off, which is the normal state.
+  reviewLogin: {
+    phone: process.env.REVIEW_LOGIN_PHONE ?? '',
+    otp: process.env.REVIEW_LOGIN_OTP ?? '',
+  },
   // MSG91 OTP API — https://control.msg91.com. Left blank, mobile OTP
   // verification fails cleanly with a 503 instead of crashing (same
   // no-op pattern as SMTP/VAPID/Razorpay/Google above). templateId is the

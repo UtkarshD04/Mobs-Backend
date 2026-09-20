@@ -6,6 +6,7 @@ import Candidate from '../models/Candidate.js'
 import Batch from '../models/Batch.js'
 import Job from '../models/Job.js'
 import { publicJobFilter } from '../utils/jobQueryFilters.js'
+import { isReviewAccount } from '../utils/reviewLogin.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
@@ -64,6 +65,11 @@ export const applyToJob = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: 'Job not found' })
   }
 
+  // Urgent-hiring roles are a premium perk: free accounts can see them but not apply.
+  if (job.instantHiring && !employee.isPremium) {
+    return res.status(403).json({ message: 'Urgent hiring jobs are for premium members. Upgrade to apply.', code: 'PREMIUM_REQUIRED' })
+  }
+
   const existing = await Application.findOne({ employee: employee._id, job: job._id })
   if (existing) return res.status(409).json({ message: 'You have already applied to this job' })
 
@@ -77,6 +83,15 @@ export const applyToJob = asyncHandler(async (req, res) => {
     appliedOn,
     premium: employee.isPremium,
   })
+
+  // The app-review account can use every feature, but its applications are a dry run: they are
+  // recorded for the reviewer to see, and never create a candidate for a real employer.
+  if (isReviewAccount(employee)) {
+    application.statusHistory.push({ status: 'shared', changedOn: appliedOn, changedBy: 'employee' })
+    application.status = 'shared'
+    await application.save()
+    return res.status(201).json(application)
+  }
 
   // Reaches the employer immediately — no staff dispatch step. Mirrors the
   // field-copy staffBatchController.dispatchBatch used to do manually.

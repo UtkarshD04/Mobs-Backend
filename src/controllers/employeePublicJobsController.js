@@ -34,6 +34,8 @@ export function publicJob(job) {
     description: job.description,
     benefits: job.benefits,
     deadline: job.deadline,
+    // Urgent-hiring roles can only be applied to with a premium account.
+    instantHiring: !!job.instantHiring,
     postedOn: job.postedOn,
     posted: job.postedOn ? formatRelative(job.postedOn) : '',
   }
@@ -255,8 +257,9 @@ export const getAppliedBasedJobs = asyncHandler(async (req, res) => {
   res.json(jobs.map(publicJob))
 })
 
-// "Instant hiring" — jobs Mzobs staff flagged as urgent-to-fill. Genuinely
-// public, same as the main job board.
+// "Urgent hiring" (stored as Job.instantHiring) — jobs Mzobs staff flagged as urgent-to-fill.
+// Everyone can see them; applying to one needs a premium account (enforced in
+// employeeApplicationController.applyToJob, and shown by the `instantHiring` flag below).
 export const getInstantHiringJobs = asyncHandler(async (req, res) => {
   const jobs = await Job.find({ ...publicJobFilter(), instantHiring: true })
     .populate('company', 'name logo')

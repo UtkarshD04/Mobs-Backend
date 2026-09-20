@@ -12,6 +12,7 @@ import Payment from '../models/Payment.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
 import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
 import EmailOtp from '../models/EmailOtp.js'
+import { isReviewPhone, reviewOtpMatches, ensureReviewAccount } from '../utils/reviewLogin.js'
 import {
   EMAIL_RE,
   EMAIL_OTP_TTL_MS,
@@ -74,9 +75,12 @@ export const login = asyncHandler(async (req, res) => {
 })
 
 export const sendPhoneOtp = asyncHandler(async (req, res) => {
+  const { phone } = req.body ?? {}
+  // The reserved app-review number never gets an SMS: it accepts a fixed OTP (utils/reviewLogin.js).
+  if (isReviewPhone(phone)) return res.json({ message: 'OTP sent' })
+
   if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
 
-  const { phone } = req.body ?? {}
   if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
     return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
   }
@@ -86,9 +90,14 @@ export const sendPhoneOtp = asyncHandler(async (req, res) => {
 })
 
 export const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  const { phone, otp } = req.body ?? {}
+  if (isReviewPhone(phone)) {
+    if (!reviewOtpMatches(otp)) return res.status(400).json({ message: 'Incorrect or expired OTP' })
+    return res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+  }
+
   if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
 
-  const { phone, otp } = req.body ?? {}
   if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof otp !== 'string' || !otp.trim()) {
     return res.status(400).json({ message: 'Phone and OTP are required' })
   }
@@ -112,6 +121,9 @@ export const phoneLogin = asyncHandler(async (req, res) => {
   if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
     return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
   }
+
+  // The review account is created on first use, ready to go (verified resume, premium).
+  if (isReviewPhone(phone)) await ensureReviewAccount()
 
   const employee = await Employee.findOne({ phone: phone.trim() })
   if (!employee) return res.status(404).json({ message: 'No account found for this mobile number' })
@@ -171,6 +183,8 @@ export const signup = asyncHandler(async (req, res) => {
   if (env.msg91.authKey && !phoneVerified) {
     return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
   }
+
+  if (isReviewPhone(phone)) return res.status(409).json({ message: 'This mobile number is reserved. Please use another number.' })
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await Employee.findOne({ email: normalizedEmail })
