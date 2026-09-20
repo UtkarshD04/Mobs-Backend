@@ -44,5 +44,13 @@ export async function verifyGoogleToken(credential) {
     throw err
   }
 
+  // A Google account can have an email address it never confirmed. Signing in (and linking to
+  // an existing Mzobs account) by that address would let someone claim an inbox they don't own.
+  if (payload.email_verified === false) {
+    const err = new Error('This Google account\'s email address is not verified')
+    err.status = 400
+    throw err
+  }
+
   return { googleId: payload.sub, email: payload.email.toLowerCase().trim(), name: payload.name ?? '' }
 }

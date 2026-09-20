@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
+import { logger } from '../config/logger.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
@@ -241,7 +242,16 @@ export const sendEmailOtp = asyncHandler(async (req, res) => {
     { codeHash: hashEmailOtp(address, code), attempts: 0, lastSentAt: new Date(), expiresAt: new Date(Date.now() + EMAIL_OTP_TTL_MS) },
     { upsert: true }
   )
-  await sendMail({ to: address, ...emailOtpMessage(code) })
+  try {
+    await sendMail({ to: address, ...emailOtpMessage(code) })
+  } catch (err) {
+    // Mail server down / bad SMTP credentials / blocked port. Say so plainly instead of a
+    // generic 500, put the real reason in the logs, and drop the code so the 30-second
+    // cooldown doesn't lock the person out of trying again.
+    logger.error({ err, to: address }, 'Could not send email sign-in code (check SMTP_HOST/PORT/USER/PASS)')
+    await EmailOtp.deleteOne({ email: address })
+    return res.status(503).json({ message: 'We could not send the code right now. Please try again in a moment.' })
+  }
 
   res.json({ message: 'Code sent' })
 })
@@ -313,6 +323,7 @@ export const googleLogin = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
   }
 
+  employee.emailVerified = true // Google has confirmed this address
   employee.lastActiveAt = new Date()
   await employee.save()
 
@@ -356,6 +367,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     email,
     phone: phone.trim(),
     phoneVerified,
+    emailVerified: true, // Google has confirmed this address
     googleId,
     experience: experience === 'experienced' ? 'experienced' : 'fresher',
     graduation: typeof graduation === 'string' ? graduation.trim() : '',
