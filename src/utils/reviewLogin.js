@@ -57,6 +57,7 @@ export async function ensureReviewAccount() {
   employee.resume.version = employee.resume.version || 1
   employee.resume.uploadedOn = employee.resume.uploadedOn ?? now
   employee.resume.verifiedOn = employee.resume.verifiedOn ?? now
+  employee.profileCompletedAt = employee.profileCompletedAt ?? now
   employee.subscription.status = 'paid'
   employee.subscription.amount = 0
   employee.subscription.paidOn = employee.subscription.paidOn ?? now

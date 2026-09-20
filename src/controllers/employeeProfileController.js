@@ -34,6 +34,8 @@ const PROFILE_FIELDS = [
   'resumeHeadline',
   'experience',
   'graduation',
+  'state',
+  'pincode',
 ]
 
 function pickInput(body) {
@@ -78,4 +80,61 @@ export const deleteAccount = asyncHandler(async (req, res) => {
   const id = req.employee._id
   await deleteEmployeeAccount(id)
   res.json({ id: id.toString() })
+})
+
+// The mandatory "complete your profile" step that follows the ₹99 payment. Saves
+// whatever was sent, then checks the details a recruiter needs before the profile
+// counts as complete. Only paid accounts can call it, so an unpaid signup is never
+// asked for (or pretends to have finished) the full profile.
+const isText = (v) => typeof v === 'string' && v.trim().length > 0
+const nonEmptyList = (v) => Array.isArray(v) && v.some((x) => isText(String(x ?? '')))
+
+export function missingProfileFields(e) {
+  const missing = []
+  const need = (ok, label) => {
+    if (!ok) missing.push(label)
+  }
+  need(isText(e.name), 'name')
+  need(/^[6-9]\d{9}$/.test(String(e.phone ?? '').replace(/^\+?91/, '').replace(/\D/g, '')), 'mobile number')
+  need(isText(e.dob), 'date of birth')
+  need(isText(e.gender), 'gender')
+  need(isText(e.currentCity), 'current city')
+  need(isText(e.state), 'state')
+  need(/^\d{6}$/.test(String(e.pincode ?? '').trim()), 'pincode')
+  if (e.experience === 'experienced') {
+    need(isText(e.currentCompany), 'current company')
+    need(isText(e.designation), 'designation')
+    need(Number(e.experienceYears) > 0, 'total experience')
+  }
+  const edu = Array.isArray(e.education) ? e.education[0] : null
+  need(edu && isText(edu.degree) && isText(edu.institute) && isText(edu.year), 'education (degree, institute and year)')
+  need(nonEmptyList(e.skills), 'at least one skill')
+  need(isText(e.preferredRole), 'preferred role')
+  need(nonEmptyList(e.preferredLocations), 'preferred location')
+  need(isText(e.resumeHeadline), 'resume headline')
+  return missing
+}
+
+export const completeProfile = asyncHandler(async (req, res) => {
+  const employee = req.employee
+  if (!employee.isPremium) {
+    return res.status(403).json({ message: 'Activate placement support to complete your profile.', code: 'PREMIUM_REQUIRED' })
+  }
+
+  const input = pickInput(req.body ?? {})
+  if (input.name !== undefined && !String(input.name).trim()) {
+    return res.status(400).json({ message: 'name is required' })
+  }
+  Object.assign(employee, input)
+
+  const missing = missingProfileFields(employee)
+  if (missing.length) {
+    return res.status(400).json({ message: `Please fill in: ${missing.join(', ')}.`, code: 'PROFILE_INCOMPLETE', missing })
+  }
+
+  employee.profileSetupPending = false
+  employee.profileCompletedAt = employee.profileCompletedAt ?? new Date()
+  await employee.save()
+
+  res.json(serializeProfile(employee))
 })

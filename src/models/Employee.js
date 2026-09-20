@@ -150,9 +150,25 @@ const employeeSchema = new Schema(
     skillTrack: { type: skillTrackSchema, default: () => ({}) },
     subscription: { type: subscriptionSchema, default: () => ({}) },
     shortlist: { type: shortlistSchema, default: () => ({}) },
+
+    // Signup only collects name, mobile and email. The full profile (like Naukri's
+    // "complete your profile") is asked for once the one-time fee is paid: the
+    // pre-save hook below raises `profileSetupPending` the moment the subscription
+    // turns paid, and POST /profile/complete clears it after validating the answers.
+    // Accounts that paid before this existed never get the flag, so nobody is
+    // suddenly locked out.
+    profileSetupPending: { type: Boolean, default: false },
+    profileCompletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 )
+
+employeeSchema.pre('save', function (next) {
+  if (this.subscription?.status === 'paid' && this.isModified('subscription.status') && !this.profileCompletedAt) {
+    this.profileSetupPending = true
+  }
+  next()
+})
 
 employeeSchema.virtual('isPremium').get(function () {
   return this.subscription?.status === 'paid'

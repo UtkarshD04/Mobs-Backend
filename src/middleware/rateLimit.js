@@ -24,13 +24,28 @@ export const authLimiter = rateLimit({
   store: makeStore('rl:auth:'),
 })
 
+// Push-token registration has its own bucket (pushLimiter below) and is left out of this
+// one: an app build that retried it in a loop used up the shared per-IP allowance and
+// then every login from that network got "Too many requests".
+const PUSH_PATH = /^\/employee\/push(\/|$)/
+
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
+  skip: (req) => PUSH_PATH.test(req.path),
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests. Please slow down.' },
   store: makeStore('rl:api:'),
+})
+
+export const pushLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please slow down.' },
+  store: makeStore('rl:push:'),
 })
 
 // Each OTP send is a billed SMS, so this is capped much tighter than the

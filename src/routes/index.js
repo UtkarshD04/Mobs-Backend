@@ -9,6 +9,7 @@ import interviewRoutes from './interviewRoutes.js'
 import offerRoutes from './offerRoutes.js'
 import notificationRoutes from './notificationRoutes.js'
 import pushRoutes from './pushRoutes.js'
+import { pushLimiter } from '../middleware/rateLimit.js'
 import billingRoutes from './billingRoutes.js'
 import employerSubscriptionRoutes from './employerSubscriptionRoutes.js'
 import { createGuestSubscriptionOrder } from '../controllers/employerSubscriptionController.js'
@@ -98,7 +99,7 @@ employeeRoutes.use('/notification-preferences', employeeNotificationPreferenceRo
 employeeRoutes.use('/mock-interview', employeeMockInterviewRoutes)
 employeeRoutes.use('/interviews', employeeInterviewRoutes)
 employeeRoutes.use('/notifications', employeeNotificationRoutes)
-employeeRoutes.use('/push', employeePushRoutes)
+employeeRoutes.use('/push', pushLimiter, employeePushRoutes)
 employeeRoutes.use('/messages', employeeMessageRoutes)
 employeeRoutes.use('/support', employeeSupportRoutes)
 
