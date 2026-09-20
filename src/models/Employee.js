@@ -78,7 +78,7 @@ const shortlistSchema = new Schema(
 const subscriptionSchema = new Schema(
   {
     status: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
-    amount: { type: Number, default: 299 },
+    amount: { type: Number, default: 99 },
     paidOn: { type: Date, default: null },
   },
   { _id: false }

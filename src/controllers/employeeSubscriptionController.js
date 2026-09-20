@@ -8,7 +8,7 @@ import Payment from '../models/Payment.js'
 import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
 import { streamSubscriptionInvoice } from '../utils/invoicePdf.js'
 
-const DEFAULT_FEE = 299
+const DEFAULT_FEE = 99
 
 // Looks up and prices a coupon against the fixed subscription fee. Returns
 // null (no coupon requested) or `{ coupon, discountAmount, amount }` with
@@ -102,7 +102,9 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     return res.status(409).json({ message: 'Subscription is already active' })
   }
 
-  const baseAmount = employee.subscription.amount ?? DEFAULT_FEE
+  // Unpaid accounts always pay the current fee — a stored amount on an unpaid
+  // record is only the default from when the account was created.
+  const baseAmount = DEFAULT_FEE
   let amount = baseAmount
   let discountAmount = 0
   let couponCode = null
