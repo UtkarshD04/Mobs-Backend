@@ -145,7 +145,8 @@ export function salaryOverlapQuery(rangeKeys) {
   if (!ranges.length) return null
   return {
     $or: ranges.map(({ min, max }) => {
-      const cond = { salaryMax: { $gte: min } }
+      // Jobs that don't disclose pay are stored as 0-0; they must not match the "0-3 lakh" band.
+      const cond = { salaryMax: { $gte: Math.max(min, 1) } }
       if (Number.isFinite(max)) cond.salaryMin = { $lte: max }
       return cond
     }),
