@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import Job from '../models/Job.js'
 import Application from '../models/Application.js'
 import { publicJob } from './employeePublicJobsController.js'
-import { PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
+import { publicJobFilter } from '../utils/jobQueryFilters.js'
 import { rankJobsForEmployee } from '../utils/jobMatching.js'
 
 const CANDIDATE_POOL_SIZE = 300
@@ -21,8 +21,7 @@ export const getRecommendedJobs = asyncHandler(async (req, res) => {
   const appliedJobIds = await Application.find({ employee: employee._id }).distinct('job')
 
   const pool = await Job.find({
-    visibleToCandidates: true,
-    status: { $in: PUBLIC_STATUSES },
+    ...publicJobFilter(),
     _id: { $nin: appliedJobIds },
   })
     .populate('company', 'name logo')

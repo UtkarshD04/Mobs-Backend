@@ -5,6 +5,7 @@ import Application from '../models/Application.js'
 import Candidate from '../models/Candidate.js'
 import Batch from '../models/Batch.js'
 import Job from '../models/Job.js'
+import { publicJobFilter } from '../utils/jobQueryFilters.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
@@ -54,8 +55,14 @@ export const applyToJob = asyncHandler(async (req, res) => {
     }
   }
 
-  const job = await Job.findOne({ _id: jobId, visibleToCandidates: true, status: { $in: ['sourcing', 'delivered'] } })
-  if (!job) return res.status(404).json({ message: 'Job not found' })
+  const job = await Job.findOne({ _id: jobId, ...publicJobFilter() })
+  if (!job) {
+    // Distinguish "closed because its deadline passed" from "never existed / not public".
+    const { $and: _expiry, ...visibleOnly } = publicJobFilter()
+    const pastDeadline = await Job.exists({ _id: jobId, ...visibleOnly })
+    if (pastDeadline) return res.status(410).json({ message: 'The deadline to apply for this job has passed.' })
+    return res.status(404).json({ message: 'Job not found' })
+  }
 
   const existing = await Application.findOne({ employee: employee._id, job: job._id })
   if (existing) return res.status(409).json({ message: 'You have already applied to this job' })

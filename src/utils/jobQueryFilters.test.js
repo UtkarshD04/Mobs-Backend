@@ -9,6 +9,9 @@ import {
   buildJobQuery,
   buildSortStage,
   escapeRegex,
+  todayIST,
+  notExpiredClause,
+  publicJobFilter,
 } from './jobQueryFilters.js'
 
 describe('parseCsv', () => {
@@ -142,7 +145,7 @@ describe('buildJobQuery', () => {
   test('combines q and location as separate AND-ed OR-clauses, not merged together', () => {
     const filters = parseJobFilters({ q: 'react', location: 'Bengaluru' })
     const query = buildJobQuery(filters)
-    assert.equal(query.$and.length, 2)
+    assert.equal(query.$and.length, 3)
   })
 
   test('folds a keyword-matched company id list into the q OR-clause', () => {
@@ -191,5 +194,43 @@ describe('buildSortStage', () => {
 
   test('salary_desc sorts by salaryMax descending', () => {
     assert.deepEqual(buildSortStage(parseJobFilters({ sort: 'salary_desc' })), { salaryMax: -1, postedOn: -1 })
+  })
+})
+
+describe('deadline expiry', () => {
+  // 2026-09-20 20:00 UTC is already 21 Sept 01:30 in India.
+  const lateEveningUtc = new Date('2026-09-20T20:00:00Z')
+
+  test('todayIST rolls over on India time, not UTC', () => {
+    assert.equal(todayIST(new Date('2026-09-20T10:00:00Z')), '2026-09-20')
+    assert.equal(todayIST(lateEveningUtc), '2026-09-21')
+  })
+
+  test('keeps a job through its deadline day and drops it after', () => {
+    const [noOrBadDeadline, dated] = notExpiredClause(new Date('2026-09-20T10:00:00Z')).$or
+    assert.equal(dated.deadline.$gte, '2026-09-20')
+    assert.ok(noOrBadDeadline.deadline.$not instanceof RegExp)
+    assert.equal(notExpiredClause(lateEveningUtc).$or[1].deadline.$gte, '2026-09-21')
+  })
+
+  test('only date-shaped deadlines can expire a job', () => {
+    const re = notExpiredClause().$or[0].deadline.$not
+    assert.ok(re.test('2026-10-05'))
+    assert.ok(!re.test('ASAP'))
+    assert.ok(!re.test(''))
+  })
+
+  test('publicJobFilter is visible + public status + not expired, evaluated fresh each call', () => {
+    const a = publicJobFilter(new Date('2026-01-01T00:00:00Z'))
+    const b = publicJobFilter(new Date('2026-06-01T00:00:00Z'))
+    assert.equal(a.visibleToCandidates, true)
+    assert.deepEqual(a.status.$in, ['sourcing', 'delivered'])
+    assert.notEqual(a.$and[0].$or[1].deadline.$gte, b.$and[0].$or[1].deadline.$gte)
+  })
+
+  test('buildJobQuery always carries the expiry clause', () => {
+    const query = buildJobQuery(parseJobFilters({}))
+    assert.equal(query.$and.length, 1)
+    assert.ok(query.$and.at(-1).$or[1].deadline.$gte)
   })
 })

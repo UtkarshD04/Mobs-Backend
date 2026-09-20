@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import { paginationParams, setPaginationHeaders } from '../utils/paginate.js'
-import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
+import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobFilter } from '../utils/jobQueryFilters.js'
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import { matchRank, buildSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES } from '../config/jobSuggestionsFallback.js'
@@ -10,7 +10,6 @@ import Company from '../models/Company.js'
 import Application from '../models/Application.js'
 
 const RECOMMENDATION_LIMIT = 12
-const BASE_VISIBLE_QUERY = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
 
 // Public/employee-safe view of a job — no fee, invoice, or internal sourcing data.
 // Exported so other employee-facing controllers (saved jobs, recently viewed,
@@ -99,7 +98,7 @@ export const listPublicJobs = asyncHandler(async (req, res) => {
 })
 
 export const getPublicJob = asyncHandler(async (req, res) => {
-  const job = await Job.findOne({ _id: req.params.id, visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }).populate(
+  const job = await Job.findOne({ _id: req.params.id, ...publicJobFilter() }).populate(
     'company',
     'name logo'
   )
@@ -149,7 +148,7 @@ export const getJobFacets = asyncHandler(async (req, res) => {
 
 const groupValueCounts = (field) =>
   Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $group: { _id: `$${field}`, count: { $sum: 1 } } },
   ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
 
@@ -173,8 +172,7 @@ export const getJobSuggestions = asyncHandler(async (req, res) => {
   const [cityRows, remoteCount] = await Promise.all([
     groupValueCounts('location'),
     Job.countDocuments({
-      visibleToCandidates: true,
-      status: { $in: PUBLIC_STATUSES },
+      ...publicJobFilter(),
       $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
     }),
   ])
@@ -204,7 +202,7 @@ export const getAppliedBasedJobs = asyncHandler(async (req, res) => {
   if (tracks.length) or.push({ track: { $in: tracks } })
   if (skills.length) or.push({ skills: { $in: skills.map((s) => new RegExp(`^${escapeRegex(s)}$`, 'i')) } })
 
-  const query = { ...BASE_VISIBLE_QUERY, _id: { $nin: appliedJobIds }, $or: or }
+  const query = { ...publicJobFilter(), _id: { $nin: appliedJobIds }, $or: or }
   const jobs = await Job.find(query).populate('company', 'name logo').sort({ postedOn: -1 }).limit(RECOMMENDATION_LIMIT)
   res.json(jobs.map(publicJob))
 })
@@ -212,7 +210,7 @@ export const getAppliedBasedJobs = asyncHandler(async (req, res) => {
 // "Instant hiring" — jobs Mzobs staff flagged as urgent-to-fill. Genuinely
 // public, same as the main job board.
 export const getInstantHiringJobs = asyncHandler(async (req, res) => {
-  const jobs = await Job.find({ ...BASE_VISIBLE_QUERY, instantHiring: true })
+  const jobs = await Job.find({ ...publicJobFilter(), instantHiring: true })
     .populate('company', 'name logo')
     .sort({ postedOn: -1 })
     .limit(RECOMMENDATION_LIMIT)

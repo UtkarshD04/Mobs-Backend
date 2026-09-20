@@ -8,6 +8,29 @@ export const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internsh
 export const TRACKS = ['analytics', 'design', 'sales', 'marketing', 'hr', 'support', 'tech', 'ops']
 export const PUBLIC_STATUSES = ['sourcing', 'delivered']
 
+// Job.deadline is stored as the 'YYYY-MM-DD' string a <input type="date"> produces,
+// which sorts correctly as text. A job stays listed through the whole deadline day
+// (India time, since that's the calendar the employer picked the date in) and drops
+// off the next day. A missing or non-ISO deadline never expires a job — better to
+// keep showing an oddly-formatted legacy posting than to hide it by mistake.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
+
+export function todayIST(now = new Date()) {
+  return new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+export function notExpiredClause(now = new Date()) {
+  return { $or: [{ deadline: { $not: ISO_DATE_RE } }, { deadline: { $gte: todayIST(now) } }] }
+}
+
+// The one definition of "a job candidates can see": visible, in a public status,
+// and not past its deadline. Evaluated per call (never cache it at module level,
+// the date moves). Safe to spread and add other keys, but don't overwrite `$and`.
+export function publicJobFilter(now = new Date()) {
+  return { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES }, $and: [notExpiredClause(now)] }
+}
+
 // '0-1' is kept (rather than a plain '0') for compatibility with the
 // existing Landing Frontend "Freshers" link (?experience=0-1).
 export const EXPERIENCE_RANGES = {
@@ -130,7 +153,7 @@ export function postedWithinQuery(days) {
 // caller (a small Company.find({name: regex}) lookup) since this module
 // stays DB-free; passing an empty array simply skips that OR-branch.
 export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
-  const query = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
+  const { $and: _expiry, ...query } = publicJobFilter()
   const and = []
 
   if (filters.ids.length) query._id = { $in: filters.ids }
@@ -175,7 +198,9 @@ export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
     and.push({ $or: or })
   }
 
-  if (and.length) query.$and = and
+  // Always last, so the clauses above keep their positions.
+  and.push(notExpiredClause())
+  query.$and = and
   return query
 }
 

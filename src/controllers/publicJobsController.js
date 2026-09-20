@@ -1,5 +1,5 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
+import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobFilter } from '../utils/jobQueryFilters.js'
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
@@ -132,7 +132,7 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 // only round-trips when that state is missing.
 export const getLatestJob = asyncHandler(async (req, res) => {
   if (!OBJECT_ID_RE.test(req.params.id)) return res.status(404).json({ message: 'Job not found' })
-  const job = await Job.findOne({ _id: req.params.id, visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }).populate(
+  const job = await Job.findOne({ _id: req.params.id, ...publicJobFilter() }).populate(
     'company',
     'name logo'
   )
@@ -145,14 +145,14 @@ export const getLatestJob = asyncHandler(async (req, res) => {
 // title/skill/company suggestion groups below.
 function groupValueCounts(field) {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $group: { _id: `$${field}`, count: { $sum: 1 } } },
   ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
 }
 
 function groupSkillCounts() {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $unwind: '$skills' },
     { $group: { _id: '$skills', count: { $sum: 1 } } },
   ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
@@ -163,7 +163,7 @@ function groupSkillCounts() {
 // exact/starts-with/contains way as everything else.
 function groupCompanyCounts() {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $group: { _id: '$company', count: { $sum: 1 } } },
     { $lookup: { from: 'companies', localField: '_id', foreignField: '_id', as: 'company' } },
     { $unwind: '$company' },
@@ -189,8 +189,7 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
     const [cityRows, remoteCount] = await Promise.all([
       groupValueCounts('location'),
       Job.countDocuments({
-        visibleToCandidates: true,
-        status: { $in: PUBLIC_STATUSES },
+        ...publicJobFilter(),
         $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
       }),
     ])
@@ -244,7 +243,7 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
 // `department` field, so it's counted by matching that instead, same as
 // every other number here: a real query result, never a hardcoded figure.
 export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
-  const baseMatch = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
+  const baseMatch = publicJobFilter()
   const [trackRows, freshers, remote, finance] = await Promise.all([
     Job.aggregate([{ $match: baseMatch }, { $group: { _id: '$track', count: { $sum: 1 } } }]),
     Job.countDocuments(buildJobQuery(parseJobFilters({ experience: '0-1' }))),
@@ -268,8 +267,7 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
 // cheaper than 60 separate city×filter round trips.
 export const getPublicHotCities = asyncHandler(async (req, res) => {
   const jobs = await Job.find({
-    visibleToCandidates: true,
-    status: { $in: PUBLIC_STATUSES },
+    ...publicJobFilter(),
     location: { $in: HOT_CITIES.map((c) => c.match) },
   })
     .select('location track department salaryMin salaryMax postedOn createdAt company')
