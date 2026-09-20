@@ -234,3 +234,24 @@ describe('deadline expiry', () => {
     assert.ok(query.$and.at(-1).$or[1].deadline.$gte)
   })
 })
+
+describe('experienceYears and 15-day freshness', () => {
+  test('parses a whole-number years value, rejects junk', () => {
+    assert.equal(parseJobFilters({ experienceYears: '3' }).experienceYears, 3)
+    assert.equal(parseJobFilters({ experienceYears: '0' }).experienceYears, 0)
+    assert.equal(parseJobFilters({ experienceYears: '2.5' }).experienceYears, null)
+    assert.equal(parseJobFilters({ experienceYears: '-1' }).experienceYears, null)
+    assert.equal(parseJobFilters({ experienceYears: '99' }).experienceYears, null)
+    assert.equal(parseJobFilters({ experienceYears: '{"$gt":0}' }).experienceYears, null)
+    assert.equal(parseJobFilters({}).experienceYears, null)
+  })
+
+  test('experienceYears becomes a "range contains N" clause', () => {
+    const query = buildJobQuery(parseJobFilters({ experienceYears: '3' }))
+    assert.ok(query.$and.some((c) => c.experienceMin?.$lte === 3 && c.experienceMax?.$gte === 3))
+  })
+
+  test('accepts postedWithin=15', () => {
+    assert.equal(parseJobFilters({ postedWithin: '15' }).postedWithinDays, 15)
+  })
+})

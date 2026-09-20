@@ -50,7 +50,9 @@ export const SALARY_RANGES = {
   '15+': { min: 1500000, max: Infinity },
 }
 
-export const POSTED_WITHIN_DAYS = [1, 3, 7, 30]
+export const POSTED_WITHIN_DAYS = [1, 3, 7, 15, 30]
+// "My experience is N years" — matches jobs whose [experienceMin, experienceMax] contains N.
+export const MAX_EXPERIENCE_YEARS = 40
 // 'nearest' only takes effect when the request also carries valid lat/lng
 // (see parseJobFilters below) — falls back to 'newest' otherwise.
 export const SORT_OPTIONS = ['newest', 'salary_desc', 'salary_asc', 'relevance', 'nearest']
@@ -74,6 +76,12 @@ export function parseCsv(value) {
 function allowlisted(values, allowed) {
   const allowedSet = new Set(allowed)
   return values.filter((v) => allowedSet.has(v))
+}
+
+function parseExperienceYears(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 0 && n <= MAX_EXPERIENCE_YEARS ? n : null
 }
 
 // Turns raw, untrusted req.query into a normalized, allowlisted filter
@@ -102,6 +110,7 @@ export function parseJobFilters(query = {}) {
     track: allowlisted(parseCsv(query.track ?? query.department), TRACKS),
     experience: allowlisted(parseCsv(query.experience), Object.keys(EXPERIENCE_RANGES)),
     salary: allowlisted(parseCsv(query.salary), Object.keys(SALARY_RANGES)),
+    experienceYears: parseExperienceYears(query.experienceYears),
     skills: parseCsv(query.skills).slice(0, 20).map((s) => s.slice(0, 60)),
     postedWithinDays: POSTED_WITHIN_DAYS.includes(Number(query.postedWithin)) ? Number(query.postedWithin) : null,
     companyIds: parseCsv(query.company).filter((id) => OBJECT_ID_RE.test(id)),
@@ -171,6 +180,10 @@ export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
 
   const salaryQuery = salaryOverlapQuery(filters.salary)
   if (salaryQuery) and.push(salaryQuery)
+
+  if (filters.experienceYears != null) {
+    and.push({ experienceMin: { $lte: filters.experienceYears }, experienceMax: { $gte: filters.experienceYears } })
+  }
 
   const postedQuery = postedWithinQuery(filters.postedWithinDays)
   if (postedQuery) Object.assign(query, postedQuery)

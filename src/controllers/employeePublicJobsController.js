@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import { paginationParams, setPaginationHeaders } from '../utils/paginate.js'
-import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobFilter } from '../utils/jobQueryFilters.js'
+import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobFilter, EXPERIENCE_RANGES, SALARY_RANGES, POSTED_WITHIN_DAYS } from '../utils/jobQueryFilters.js'
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import { matchRank, buildSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES } from '../config/jobSuggestionsFallback.js'
@@ -106,25 +106,62 @@ export const getPublicJob = asyncHandler(async (req, res) => {
   res.json(publicJob(job))
 })
 
-// Facet counts for the sidebar filters, scoped to candidate-visible jobs and
-// (optionally) narrowed by whatever filters are already active — so counts
-// stay meaningful as the user filters further. Never touches fee/invoice/
-// sourcing fields.
+// Facet counts for the sidebar filters, scoped to candidate-visible jobs. Each
+// group's counts are computed with every OTHER active filter applied but NOT its
+// own — so on a multi-select group ("Remote" ticked) the sibling options still
+// show how many jobs they would add, instead of collapsing to zero. Never touches
+// fee/invoice/sourcing fields. Shared by the dashboard (/api/employee/jobs/facets)
+// and the marketing site (/api/jobs/facets).
+const FACET_RESET = {
+  location: { location: [] },
+  skills: { skills: [] },
+  departments: { track: [] },
+  workModes: { workMode: [] },
+  employmentTypes: { employmentType: [] },
+  companies: { companyIds: [] },
+}
+
+// "Lucknow", "lucknow " and "Lucknow, Uttar Pradesh" are one city — merge them
+// (the location filter itself is a case-insensitive substring match, so picking
+// the merged label still finds every spelling).
+function mergeLocationRows(rows) {
+  const byCity = new Map()
+  for (const row of rows) {
+    if (!row._id) continue
+    const raw = String(row._id).split(',')[0].trim().replace(/\s+/g, ' ')
+    const key = raw.toLowerCase()
+    if (!key) continue
+    const existing = byCity.get(key)
+    if (existing) existing.count += row.count
+    else byCity.set(key, { value: raw === raw.toLowerCase() || raw === raw.toUpperCase() ? raw.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()) : raw, count: row.count })
+  }
+  return [...byCity.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+}
+
 export const getJobFacets = asyncHandler(async (req, res) => {
   const filters = parseJobFilters(req.query)
   const matchingCompanyIdsForQ = await resolveMatchingCompanyIds(filters.q)
-  const query = buildJobQuery(filters, { matchingCompanyIdsForQ })
+  const queryFor = (override = {}) => buildJobQuery({ ...filters, ...override }, { matchingCompanyIdsForQ })
 
-  const groupCount = (field) => Job.aggregate([{ $match: query }, { $group: { _id: `$${field}`, count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 50 }])
+  const groupCount = (field, override) =>
+    Job.aggregate([{ $match: queryFor(override) }, { $group: { _id: `$${field}`, count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 200 }])
+  const bucketCounts = (keys, group) =>
+    Promise.all(keys.map(async (value) => ({ value, count: await Job.countDocuments(queryFor({ [group]: [value] })) })))
 
-  const [locations, skills, departments, workModes, employmentTypes, companies] = await Promise.all([
-    groupCount('location'),
-    Job.aggregate([{ $match: query }, { $unwind: '$skills' }, { $group: { _id: '$skills', count: { $sum: 1 } } }, { $sort: { count: -1 } }, { $limit: 60 }]),
-    groupCount('track'),
-    groupCount('workMode'),
-    groupCount('employmentType'),
+  const [locations, skills, departments, workModes, employmentTypes, companies, experience, salary, postedWithin] = await Promise.all([
+    groupCount('location', FACET_RESET.location),
     Job.aggregate([
-      { $match: query },
+      { $match: queryFor(FACET_RESET.skills) },
+      { $unwind: '$skills' },
+      { $group: { _id: '$skills', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 60 },
+    ]),
+    groupCount('track', FACET_RESET.departments),
+    groupCount('workMode', FACET_RESET.workModes),
+    groupCount('employmentType', FACET_RESET.employmentTypes),
+    Job.aggregate([
+      { $match: queryFor(FACET_RESET.companies) },
       { $group: { _id: '$company', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 50 },
@@ -132,17 +169,28 @@ export const getJobFacets = asyncHandler(async (req, res) => {
       { $unwind: '$company' },
       { $project: { _id: 0, id: '$_id', name: '$company.name', count: 1 } },
     ]),
+    bucketCounts(Object.keys(EXPERIENCE_RANGES), 'experience'),
+    bucketCounts(Object.keys(SALARY_RANGES), 'salary'),
+    Promise.all(
+      POSTED_WITHIN_DAYS.map(async (days) => ({
+        value: String(days),
+        count: await Job.countDocuments(queryFor({ postedWithinDays: days })),
+      }))
+    ),
   ])
 
   const asValueCount = (rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count }))
 
   res.json({
-    locations: asValueCount(locations),
+    locations: mergeLocationRows(locations),
     skills: asValueCount(skills),
     departments: asValueCount(departments),
     workModes: asValueCount(workModes),
     employmentTypes: asValueCount(employmentTypes),
     companies,
+    experience,
+    salary,
+    postedWithin,
   })
 })
 
