@@ -36,6 +36,9 @@ export const env = {
     user: process.env.SMTP_USER ?? '',
     pass: process.env.SMTP_PASS ?? '',
     from: process.env.MAIL_FROM ?? 'Mzobs <no-reply@mzobs.com>',
+    // A real, monitored inbox here (rather than no-reply@) is one of the
+    // signals mailbox providers use to judge whether mail is legitimate.
+    replyTo: process.env.MAIL_REPLY_TO ?? '',
   },
   vapid: {
     publicKey: process.env.VAPID_PUBLIC_KEY ?? '',

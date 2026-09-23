@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
 import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
+import { checkPhoneToken } from '../utils/phoneToken.js'
 
 const PROFILE_FIELDS = [
   'name',
@@ -53,6 +54,8 @@ function serializeProfile(employee) {
   const json = employee.toJSON()
   json.resume = serializeResumeSubdoc(employee.resume, 'employee-resume')
   json.resumeHistory = serializeResumeHistory(employee.resumeHistory, 'employee-resume')
+  json.hasPassword = !!employee.passwordHash
+  delete json.passwordHash
   return json
 }
 
@@ -64,6 +67,16 @@ export const updateProfile = asyncHandler(async (req, res) => {
   const input = pickInput(req.body ?? {})
   if (input.name !== undefined && !input.name.trim()) {
     return res.status(400).json({ message: 'name is required' })
+  }
+
+  // Changing the phone number needs a freshly-verified OTP token for that
+  // exact number — otherwise anyone could silently swap the contact number
+  // and take over notifications/recovery for the account.
+  if (input.phone !== undefined && input.phone.trim() !== req.employee.phone) {
+    const { phoneToken } = req.body ?? {}
+    if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, input.phone.trim())) {
+      return res.status(400).json({ message: 'Verify the new number with an OTP before saving it.', code: 'PHONE_NOT_VERIFIED' })
+    }
   }
 
   Object.assign(req.employee, input)
