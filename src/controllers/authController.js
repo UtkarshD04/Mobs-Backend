@@ -8,7 +8,7 @@ import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../uti
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
 import { verifyWidgetAccessToken } from '../utils/msg91.js'
-import { issuePhoneToken } from '../utils/phoneToken.js'
+import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
@@ -77,13 +77,23 @@ export const login = asyncHandler(async (req, res) => {
 })
 
 export const signup = asyncHandler(async (req, res) => {
-  const { companyName, name, email, phone, password, industry, size, website, hq } = req.body ?? {}
+  const { companyName, name, email, phone, password, industry, size, website, hq, phoneToken } = req.body ?? {}
   const required = { companyName, name, email, phone, password, industry, size, website, hq }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All fields are required to register your company' })
   }
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
+  }
+
+  // Phone OTP verification is mandatory once MSG91 is actually configured on
+  // this deployment — on one that isn't, requiring it would block signup
+  // entirely, so it stays optional there (same no-op-degrade pattern as the
+  // employee-side signup and every other MSG91/Google/Razorpay/SMTP
+  // integration here).
+  const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
+  if (env.msg91.authKey && !phoneVerified) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
   }
 
   const normalizedEmail = email.toLowerCase().trim()
@@ -104,6 +114,7 @@ export const signup = asyncHandler(async (req, res) => {
     name: name.trim(),
     email: normalizedEmail,
     phone: phone.trim(),
+    phoneVerified,
     passwordHash,
     role: 'Admin',
     status: 'active',
@@ -141,10 +152,15 @@ export const googleLogin = asyncHandler(async (req, res) => {
 })
 
 export const googleSignup = asyncHandler(async (req, res) => {
-  const { credential, companyName, phone, industry, size, website, hq } = req.body ?? {}
+  const { credential, companyName, phone, industry, size, website, hq, phoneToken } = req.body ?? {}
   const required = { companyName, phone, industry, size, website, hq }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All company fields are required to register your company' })
+  }
+
+  const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
+  if (env.msg91.authKey && !phoneVerified) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
   }
 
   const { googleId, email, name } = await verifyGoogleToken(credential)
@@ -165,6 +181,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     name: name || email,
     email,
     phone: phone.trim(),
+    phoneVerified,
     googleId,
     role: 'Admin',
     status: 'active',

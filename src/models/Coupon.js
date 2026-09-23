@@ -12,7 +12,7 @@ const couponSchema = new Schema(
     minOrderAmount: { type: Number, default: 0 },
     // Which payment surface this coupon can be redeemed on — kept as an
     // enum so a new payment surface is always an explicit addition here.
-    appliesTo: { type: String, enum: ['employee_subscription', 'employer_cv_credit'], default: 'employee_subscription' },
+    appliesTo: { type: String, enum: ['employee_subscription', 'employer_cv_credit', 'employer_subscription'], default: 'employee_subscription' },
     usageLimit: { type: Number, default: null }, // null = unlimited total redemptions
     usedCount: { type: Number, default: 0 },
     expiresAt: { type: Date, default: null },

@@ -4,9 +4,10 @@ import { env } from '../config/env.js'
 // frontend only ever displays this, never computes it. GST_MODE=exclusive
 // (the launch default) adds tax on top of amountPaise; GST_MODE=inclusive
 // would carve it back out instead, mirroring the employee-subscription
-// invoice convention in env.gst.
-export function getEmployerPlanPricing() {
-  const { planCode, planName, billingPeriod, amountPaise, gstMode, gstRatePercent } = env.employerPlan
+// invoice convention in env.gst. Shared by every tier in env.employerPlan.plans.
+function priceOne(planDef) {
+  const { billingPeriod, gstMode, gstRatePercent } = env.employerPlan
+  const { planCode, planName, amountPaise, benefits } = planDef
 
   const baseAmountPaise = Math.round(amountPaise)
   let gstAmountPaise
@@ -30,5 +31,20 @@ export function getEmployerPlanPricing() {
     gstAmountPaise,
     totalAmountPaise, // what Razorpay actually charges
     currency: 'INR',
+    benefits,
   }
+}
+
+// Every purchasable employer plan tier, priced. Powers the Plans & Billing
+// page's plan-picker.
+export function getEmployerPlans() {
+  return env.employerPlan.plans.map(priceOne)
+}
+
+// One priced tier by code — used at order-creation time (never trusts a
+// price the client sends) and by the guest-checkout flow, which has no plan
+// picker and always defaults to the first (base) tier.
+export function getEmployerPlanPricing(planCode) {
+  const def = (planCode && env.employerPlan.plans.find((p) => p.planCode === planCode)) || env.employerPlan.plans[0]
+  return priceOne(def)
 }

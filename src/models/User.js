@@ -7,6 +7,7 @@ const userSchema = new Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, default: '' },
+    phoneVerified: { type: Boolean, default: false },
     // Optional: an invited team member has a roster row before they have
     // credentials (no invite-accept flow yet) — login rejects a missing hash.
     passwordHash: { type: String, required: false, select: false },

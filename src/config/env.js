@@ -89,19 +89,38 @@ export const env = {
     // relying on it for interstate transactions (which should be IGST).
     state: process.env.GST_STATE ?? 'Uttar Pradesh',
   },
-  // The single launch plan: "MZOBS Employer Annual". Unlike `gst` above
-  // (which treats the employee subscription fee as tax-inclusive),
-  // EMPLOYER_ANNUAL_PLAN_GST_MODE=exclusive means the amount below is the
-  // pre-tax base price — GST is computed and added on top at checkout, and
-  // the final payable amount is what actually gets charged via Razorpay.
-  // Never guess this at the UI layer; everything reads it from here.
+  // The employer's annual plan tiers. Unlike `gst` above (which treats the
+  // employee subscription fee as tax-inclusive), GST_MODE=exclusive means
+  // each amount below is the pre-tax base price — GST is computed and added
+  // on top at checkout, and the final payable amount is what actually gets
+  // charged via Razorpay. Never guess this at the UI layer; everything reads
+  // it from here. gstMode/gstRatePercent are shared across every tier.
   employerPlan: {
-    planCode: process.env.EMPLOYER_ANNUAL_PLAN_CODE ?? 'EMPLOYER_ANNUAL_999',
-    planName: process.env.EMPLOYER_ANNUAL_PLAN_NAME ?? 'MZOBS Employer Annual',
     billingPeriod: 'annual',
-    // Base price before tax, in paise. Default 99900 paise = ₹999.
-    amountPaise: Number(process.env.EMPLOYER_ANNUAL_PLAN_AMOUNT_PAISE ?? 99900),
     gstMode: process.env.EMPLOYER_ANNUAL_PLAN_GST_MODE ?? 'exclusive', // 'inclusive' | 'exclusive'
     gstRatePercent: Number(process.env.EMPLOYER_ANNUAL_PLAN_GST_RATE ?? process.env.GST_RATE_PERCENT ?? 18),
+    plans: [
+      {
+        planCode: process.env.EMPLOYER_PLAN_BASIC_CODE ?? 'EMPLOYER_ANNUAL_999',
+        planName: process.env.EMPLOYER_PLAN_BASIC_NAME ?? 'MZOBS Employer Annual',
+        // Base price before tax, in paise. Default 99900 paise = ₹999.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_BASIC_AMOUNT_PAISE ?? process.env.EMPLOYER_ANNUAL_PLAN_AMOUNT_PAISE ?? 99900),
+        benefits: [],
+      },
+      {
+        planCode: process.env.EMPLOYER_PLAN_PLUS_CODE ?? 'EMPLOYER_ANNUAL_1499',
+        planName: process.env.EMPLOYER_PLAN_PLUS_NAME ?? 'MZOBS Employer Annual Plus',
+        // Default 149900 paise = ₹1499.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_PLUS_AMOUNT_PAISE ?? 149900),
+        benefits: ['Enhanced candidate CVs'],
+      },
+      {
+        planCode: process.env.EMPLOYER_PLAN_PRO_CODE ?? 'EMPLOYER_ANNUAL_1999',
+        planName: process.env.EMPLOYER_PLAN_PRO_NAME ?? 'MZOBS Employer Annual Pro',
+        // Default 199900 paise = ₹1999.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_PRO_AMOUNT_PAISE ?? 199900),
+        benefits: ['Enhanced candidate CVs'],
+      },
+    ],
   },
 }

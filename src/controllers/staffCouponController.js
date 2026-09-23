@@ -4,7 +4,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import Coupon from '../models/Coupon.js'
 
 const DISCOUNT_TYPES = ['percentage', 'flat']
-const APPLIES_TO_VALUES = ['employee_subscription', 'employer_cv_credit']
+const APPLIES_TO_VALUES = ['employee_subscription', 'employer_cv_credit', 'employer_subscription']
 
 // Picks only the fields the client sent (so a PATCH can't accidentally wipe
 // out unrelated ones) and coerces them to the right type. Throws on a bad
@@ -28,7 +28,7 @@ function normalizeCouponInput(body, { partial = false } = {}) {
   if (body.appliesTo !== undefined) out.appliesTo = body.appliesTo
 
   if (out.appliesTo !== undefined && !APPLIES_TO_VALUES.includes(out.appliesTo)) {
-    throw new Error('appliesTo must be employee_subscription or employer_cv_credit')
+    throw new Error('appliesTo must be employee_subscription, employer_cv_credit, or employer_subscription')
   }
   if (!partial && !out.code) throw new Error('code is required')
   if (!partial && !DISCOUNT_TYPES.includes(out.discountType)) throw new Error('discountType must be percentage or flat')

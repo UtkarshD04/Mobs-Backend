@@ -6,6 +6,7 @@ import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
+import Employee from '../models/Employee.js'
 
 // This whole file is the public, unauthenticated surface the marketing site
 // (Website/Landing-Frontend) searches against directly — no employee account
@@ -257,6 +258,20 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
   })
 
   res.json({ tracks, freshers, remote, finance })
+})
+
+// Real, live platform-scale numbers for the employer marketing page (the
+// "how big is your candidate database" stats an employer wants before they
+// sign up) — same "a real query result, never a hardcoded figure" rule as
+// every other public number here.
+export const getPublicPlatformStats = asyncHandler(async (req, res) => {
+  const [verifiedCandidates, verifiedEmployers, liveJobs] = await Promise.all([
+    Employee.countDocuments({ 'resume.status': 'verified' }),
+    Company.countDocuments({ verificationStatus: 'verified' }),
+    Job.countDocuments(publicJobFilter()),
+  ])
+
+  res.json({ verifiedCandidates, verifiedEmployers, liveJobs })
 })
 
 // Real, live per-city × category stats for the Landing Frontend's "Hot Jobs
