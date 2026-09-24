@@ -55,6 +55,9 @@ export const env = {
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
   // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  // Oldest Android versionCode allowed to run the mobile app; older builds get a blocking
+  // "Update required" screen. 0 = off. Raise it (in Dokploy env) to force an update.
+  minAndroidVersionCode: Number(process.env.MIN_ANDROID_VERSION_CODE ?? 0) || 0,
   // App-store review login (see utils/reviewLogin.js). Both blank = off, which is the normal state.
   reviewLogin: {
     phone: process.env.REVIEW_LOGIN_PHONE ?? '',

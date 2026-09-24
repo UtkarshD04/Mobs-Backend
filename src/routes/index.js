@@ -20,6 +20,7 @@ import employerPaymentsRoutes from './employerPaymentsRoutes.js'
 import employerCreditRoutes from './employerCreditRoutes.js'
 import employerUnlocksRoutes from './employerUnlocksRoutes.js'
 import { listCreditPlans } from '../controllers/employerCvCreditController.js'
+import { env } from '../config/env.js'
 import { requireAuth } from '../middleware/auth.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
@@ -127,6 +128,10 @@ staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 
 const router = Router()
+// Public: the mobile app reads this at launch to decide whether it must force an update.
+router.get('/app-config', (_req, res) => {
+  res.json({ android: { minVersionCode: env.minAndroidVersionCode } })
+})
 router.use('/employer', employerRoutes)
 router.use('/employee', employeeRoutes)
 router.use('/staff', staffRoutes)
