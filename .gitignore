@@ -1,3 +1,9 @@
 node_modules/
 .env
 uploads/
+
+# OS/editor junk
+.DS_Store
+
+# Ad-hoc local backup files — never meant to be committed
+*.bak
