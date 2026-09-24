@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
 import { assignSkillTrack, setTrustScore } from '../controllers/staffMockInterviewController.js'
-import { listEmployees, createEmployee, setEmployeeStatus, deleteEmployee } from '../controllers/staffEmployeeAccountController.js'
+import { listEmployees, getEmployee, createEmployee, setEmployeeStatus, deleteEmployee } from '../controllers/staffEmployeeAccountController.js'
 
 const router = Router()
 
@@ -10,6 +10,7 @@ const router = Router()
 router.use(requireStaffAuth)
 
 router.get('/', requireAdmin, listEmployees)
+router.get('/:employeeId', requireAdmin, getEmployee)
 router.post('/', requireAdmin, createEmployee)
 router.patch('/:employeeId/status', requireAdmin, setEmployeeStatus)
 router.delete('/:employeeId', requireAdmin, deleteEmployee)

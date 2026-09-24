@@ -5,6 +5,7 @@ import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Employee from '../models/Employee.js'
 import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
+import { serializeResumeSubdoc } from '../utils/resumeAccess.js'
 
 export const listEmployees = asyncHandler(async (req, res) => {
   const { search, status } = req.query
@@ -22,6 +23,18 @@ export const listEmployees = asyncHandler(async (req, res) => {
   })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
+})
+
+// GET /api/staff/employees/:employeeId — one candidate's full profile for the
+// admin's detail view, with a fresh short-lived link to their resume (the
+// S3 key itself never leaves the server — see resumeAccess.js).
+export const getEmployee = asyncHandler(async (req, res) => {
+  const employee = await Employee.findById(req.params.employeeId).select('-passwordHash -pushTokens -webPushSubscriptions +resume.s3Key')
+  if (!employee) return res.status(404).json({ message: 'Employee not found' })
+
+  const json = employee.toJSON()
+  json.resume = serializeResumeSubdoc(employee.resume, 'staff-resume')
+  res.json(json)
 })
 
 // Staff-provisioned account, same temp-password pattern as createTeammate —
