@@ -8,6 +8,8 @@ import Employee from '../models/Employee.js'
 import Candidate from '../models/Candidate.js'
 import Job from '../models/Job.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
+import ResumeAccessLog from '../models/ResumeAccessLog.js'
+import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { logger } from '../config/logger.js'
 
@@ -32,6 +34,10 @@ function redactEmployee(employee, { unlocked, candidateId }) {
     designation: employee.designation,
     location: employee.currentCity,
     state: employee.state,
+    preferredLocations: employee.preferredLocations,
+    relocationOk: !!employee.relocationOk,
+    preferredRole: employee.preferredRole,
+    currentCtc: employee.currentCtc,
     expectedSalary: employee.expectedSalaryMax ? `₹${employee.expectedSalaryMax}` : '',
     noticePeriod: employee.noticePeriod,
     skills: employee.skills,
@@ -45,11 +51,26 @@ function redactEmployee(employee, { unlocked, candidateId }) {
     jobTypePreference: employee.jobTypePreference,
     premium: !!employee.isPremium,
     resumeVerified: employee.resume?.status === 'verified',
+    resumeUpdatedOn: employee.resume?.uploadedOn ?? null,
+    lastActiveAt: employee.lastActiveAt,
+    emailVerified: !!employee.emailVerified,
+    phoneVerified: !!employee.phoneVerified,
     contactPreview: { email: maskEmail(employee.email), phone: maskPhone(employee.phone) },
     unlocked,
     email: unlocked ? employee.email : null,
     phone: unlocked ? employee.phone : null,
+    resumeUrl: null,
   }
+}
+
+// Same short-lived signed link as candidateController's resolveCandidateResumeUrl;
+// `employee` must have been loaded with `+resume.s3Key`. Null when there is no
+// verified resume, so callers can say "not available" instead of 500ing.
+function employeeResumeUrl(employee, purpose) {
+  const resume = employee.resume
+  if (!resume || resume.status !== 'verified') return null
+  if (resume.s3Key) return buildResumeAccessPath(resume.s3Key, resume.file, purpose)
+  return resume.url ? buildLegacyResumeAccessPath(resume.url, resume.file, purpose) : null
 }
 
 // GET /api/employer/resume-search — list/filter across the whole verified
@@ -103,7 +124,7 @@ export const getResumeDatabaseCandidate = asyncHandler(async (req, res) => {
 // re-unlocking (or just viewing) an employee already sourced by this
 // company reuses that same Candidate row and never charges twice.
 export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
-  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() })
+  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
   let candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id })
@@ -165,9 +186,35 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   }
 
   const wallet = await getWalletBalance(req.company._id)
-  res.json({
-    candidate: redactEmployee(employee, { unlocked: true, candidateId: candidate._id.toString() }),
-    wallet,
-    alreadyUnlocked: result.alreadyUnlocked,
+  const json = redactEmployee(employee, { unlocked: true, candidateId: candidate._id.toString() })
+  json.resumeUrl = employeeResumeUrl(employee, 'employer-cv-credit-unlock')
+  json.resumeFileName = json.resumeUrl ? employee.resume.file || '' : ''
+  res.json({ candidate: json, wallet, alreadyUnlocked: result.alreadyUnlocked })
+})
+
+// GET /api/employer/resume-search/:employeeId/resume-url — a fresh signed
+// link to the CV, only once this company has unlocked the candidate (the
+// unlock is what the CV credit pays for). Every call is logged, same as
+// candidateController.getCandidateResumeUrl.
+export const getResumeDatabaseResumeUrl = asyncHandler(async (req, res) => {
+  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
+  if (!employee) return res.status(404).json({ message: 'Candidate not found' })
+
+  const candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id }).select('_id application')
+  const unlock = candidate ? await CandidateUnlock.findOne({ company: req.company._id, candidate: candidate._id }) : null
+  if (!unlock) return res.status(403).json({ code: 'UNLOCK_REQUIRED', message: 'Unlock this candidate with a CV credit to view their resume.' })
+
+  const url = employeeResumeUrl(employee, 'employer-resume')
+  if (!url) return res.status(404).json({ message: 'Resume not available for this candidate' })
+
+  await ResumeAccessLog.create({
+    company: req.company._id,
+    candidate: candidate._id,
+    employee: employee._id,
+    application: candidate.application,
+    action: 'resume_viewed',
+    accessedBy: req.user._id,
   })
+
+  res.json({ url, fileName: employee.resume.file || '' })
 })
