@@ -14,6 +14,7 @@ import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
 import { ONE_YEAR_MS } from '../utils/activateEmployerSubscription.js'
 import { logActivity } from '../utils/activityLog.js'
+import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
 import EmployerSubscription from '../models/EmployerSubscription.js'
@@ -191,6 +192,34 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
   }
 
   res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
+// POST /api/employer/auth/handoff — called with the token this same login
+// just returned, right before the redirect to the dashboard app. Trades it
+// for a short-lived, single-use code so the *real* token never has to ride
+// along in a URL (browser history, server access logs, Referer headers,
+// analytics all see the query string).
+export const createHandoff = asyncHandler(async (req, res) => {
+  const code = await issueHandoffCode('employer', req.user._id.toString())
+  res.json({ code })
+})
+
+// POST /api/employer/auth/exchange — the dashboard app calls this on load
+// with the `?code=` it was handed. Deliberately re-checks account/company
+// status rather than trusting the code alone, same as login.
+export const exchangeHandoff = asyncHandler(async (req, res) => {
+  const { code } = req.body ?? {}
+  if (typeof code !== 'string' || !code.trim()) return res.status(400).json({ message: 'Code is required' })
+
+  const payload = await consumeHandoffCode('employer', code.trim())
+  if (!payload) return res.status(400).json({ message: 'This sign-in link has expired. Please sign in again.' })
+
+  const user = await User.findById(payload.userId).populate('company')
+  if (!user || !user.company) return res.status(401).json({ message: 'User no longer exists' })
+  if (user.status === 'disabled') return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
+  if (user.company.blocked) return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
+
+  res.json(authResponse(user, user.company))
 })
 
 // POST /api/employer/subscription/guest-verify — the "just your phone

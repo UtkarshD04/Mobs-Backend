@@ -1,7 +1,19 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth.js'
 import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
-import { login, signup, googleLogin, googleSignup, getMe, updateMe, forgotPassword, resetPassword, verifyPhoneWidget } from '../controllers/authController.js'
+import {
+  login,
+  signup,
+  googleLogin,
+  googleSignup,
+  getMe,
+  updateMe,
+  forgotPassword,
+  resetPassword,
+  verifyPhoneWidget,
+  createHandoff,
+  exchangeHandoff,
+} from '../controllers/authController.js'
 
 const router = Router()
 
@@ -12,6 +24,8 @@ router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)
 router.post('/forgot-password', authLimiter, forgotPassword)
 router.post('/reset-password', authLimiter, resetPassword)
+router.post('/handoff', authLimiter, requireAuth, createHandoff)
+router.post('/exchange', authLimiter, exchangeHandoff)
 router.get('/me', requireAuth, getMe)
 router.put('/me', requireAuth, updateMe)
 
