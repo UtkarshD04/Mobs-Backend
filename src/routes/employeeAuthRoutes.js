@@ -13,6 +13,8 @@ import {
   sendPhoneOtp,
   verifyPhoneOtp,
   verifyPhoneWidget,
+  createHandoff,
+  exchangeHandoff,
 } from '../controllers/employeeAuthController.js'
 
 const router = Router()
@@ -26,6 +28,8 @@ router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)
 router.post('/forgot-password', authLimiter, forgotPassword)
 router.post('/reset-password', authLimiter, resetPassword)
+router.post('/handoff', authLimiter, requireEmployeeAuth, createHandoff)
+router.post('/exchange', authLimiter, exchangeHandoff)
 router.get('/me', requireEmployeeAuth, getMe)
 router.put('/me', requireEmployeeAuth, updateMe)
 

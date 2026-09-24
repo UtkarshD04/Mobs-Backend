@@ -6,6 +6,7 @@ import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
+import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
@@ -235,6 +236,32 @@ export const googleSignup = asyncHandler(async (req, res) => {
   }
 
   res.status(201).json(authResponse(employee))
+})
+
+// POST /api/employee/auth/handoff — called with the token a login/signup
+// just returned, right before redirecting into the dashboard app. Trades it
+// for a short-lived, single-use code so the real token never has to ride in
+// a URL (browser history, server access logs, Referer headers, analytics).
+export const createHandoff = asyncHandler(async (req, res) => {
+  const code = await issueHandoffCode('employee', req.employee._id.toString())
+  res.json({ code })
+})
+
+// POST /api/employee/auth/exchange — the dashboard app calls this on load
+// with the `?code=` it was handed. Re-checks account status rather than
+// trusting the code alone, same as login.
+export const exchangeHandoff = asyncHandler(async (req, res) => {
+  const { code } = req.body ?? {}
+  if (typeof code !== 'string' || !code.trim()) return res.status(400).json({ message: 'Code is required' })
+
+  const payload = await consumeHandoffCode('employee', code.trim())
+  if (!payload) return res.status(400).json({ message: 'This sign-in link has expired. Please sign in again.' })
+
+  const employee = await Employee.findById(payload.userId)
+  if (!employee) return res.status(401).json({ message: 'Employee no longer exists' })
+  if (employee.status === 'suspended') return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+
+  res.json(authResponse(employee))
 })
 
 export const forgotPassword = asyncHandler(async (req, res) => {
