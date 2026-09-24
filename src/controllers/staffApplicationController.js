@@ -21,7 +21,7 @@ export const listApplications = asyncHandler(async (req, res) => {
   if (status && status !== 'all') query.status = status
 
   const { data, page, limit, total } = await paginate(Application, query, paginationParams(req), {
-    sort: { appliedOn: -1 },
+    sort: { premium: -1, appliedOn: -1 },
     populate: [
       // Enumerated resume subfields on purpose, not bare `resume` — Mongoose's
       // per-path `select: false` on `resume.s3Key` (see Employee.js) is only

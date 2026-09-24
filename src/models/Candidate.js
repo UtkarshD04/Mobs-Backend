@@ -29,6 +29,9 @@ const candidateSchema = new Schema(
     email: { type: String, default: '' },
     phone: { type: String, default: '' },
     source: { type: String, default: 'Mzobs Verified Pool' },
+    // Snapshot of the employee's subscription state at share time — powers
+    // priority sorting/badging for employers without a join back to Employee.
+    premium: { type: Boolean, default: false },
     stage: { type: String, enum: ['shared', 'shortlisted', 'interviewing', 'offered', 'hired', 'rejected'], default: 'shared' },
     sharedOn: { type: Date, default: Date.now },
     rejectionReason: { type: String, default: null },

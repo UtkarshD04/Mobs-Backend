@@ -9,7 +9,7 @@ import { sendPush } from '../utils/push.js'
 import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import { uploadObject, deleteObject, isS3Configured } from '../utils/s3.js'
 import { validateResumeFile, RESUME_POOL_ALLOWED_EXTENSIONS } from '../utils/fileValidation.js'
-import { resumePoolKey, buildResumeAccessPath } from '../utils/resumeAccess.js'
+import { resumePoolKey, buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { logger } from '../config/logger.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
@@ -17,11 +17,14 @@ const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 // `s3Key` is select:false on the model (never sent to a client raw) — this
 // runs on docs fetched with `+s3Key` and swaps it for a fresh, short-lived
 // access link instead. Pre-migration rows have a real static `/uploads/...`
-// url and no s3Key — left untouched, since express.static still serves it.
+// url and no s3Key — those get the same token-gated treatment (see
+// buildLegacyResumeAccessPath), since there's no more unauthenticated
+// express.static('/uploads') mount to fall back on.
 function serializePoolResume(doc) {
   const json = doc.toJSON()
   const { s3Key, ...rest } = json
   if (s3Key) rest.url = buildResumeAccessPath(s3Key, rest.file, 'resume-pool')
+  else if (rest.url) rest.url = buildLegacyResumeAccessPath(rest.url, rest.file, 'resume-pool')
   return rest
 }
 

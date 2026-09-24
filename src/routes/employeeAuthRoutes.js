@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
-import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
+import { authLimiter, otpLimiter, emailOtpLimiter } from '../middleware/rateLimit.js'
 import {
   login,
+  phoneLogin,
   signup,
   googleLogin,
   googleSignup,
@@ -11,6 +12,9 @@ import {
   forgotPassword,
   resetPassword,
   sendPhoneOtp,
+  sendEmailOtp,
+  verifyEmailOtp,
+  emailLogin,
   verifyPhoneOtp,
   verifyPhoneWidget,
   createHandoff,
@@ -23,6 +27,10 @@ router.post('/send-otp', otpLimiter, sendPhoneOtp)
 router.post('/verify-otp', otpLimiter, verifyPhoneOtp)
 router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
 router.post('/login', authLimiter, login)
+router.post('/phone-login', authLimiter, phoneLogin)
+router.post('/send-email-otp', emailOtpLimiter, sendEmailOtp)
+router.post('/verify-email-otp', emailOtpLimiter, verifyEmailOtp)
+router.post('/email-login', authLimiter, emailLogin)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)

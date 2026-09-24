@@ -11,12 +11,23 @@ function toMsg91Mobile(phone) {
 // Asks MSG91 to generate and text an OTP to the given 10-digit Indian mobile
 // number. MSG91 owns OTP generation/expiry/retry itself — we never see the
 // code, only pass/fail on send and later verify.
+//
+// MSG91 often reports a failed send (unapproved DLT template, bad sender id,
+// no SMS balance, etc.) as an HTTP 200 with `{ type: 'error', message: ... }`
+// rather than a non-2xx status, so axios alone won't throw for it — check
+// the body explicitly or a rejected/unregistered template silently "sends"
+// nothing while the caller still sees a success response.
 export async function sendOtp(phone) {
-  await axios.post(
+  const { data } = await axios.post(
     BASE_URL,
     { template_id: env.msg91.templateId, mobile: toMsg91Mobile(phone) },
     { headers: { authkey: env.msg91.authKey, 'Content-Type': 'application/json' } }
   )
+  if (data?.type !== 'success') {
+    const err = new Error(data?.message || 'MSG91 rejected the OTP send request')
+    err.status = 502
+    throw err
+  }
 }
 
 // Returns true if MSG91 confirms the code, false for a wrong/expired code.

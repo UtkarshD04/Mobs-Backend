@@ -27,6 +27,9 @@ const applicationSchema = new Schema(
     fit: { type: Number, default: null },
     note: { type: String, default: '' },
     appliedOn: { type: Date, default: Date.now },
+    // Snapshot of the employee's subscription state at apply time — powers
+    // priority sorting in staff triage without a join back to Employee.
+    premium: { type: Boolean, default: false },
   },
   { timestamps: true }
 )

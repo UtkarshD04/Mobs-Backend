@@ -5,10 +5,12 @@ import jobRoutes from './jobRoutes.js'
 import teamRoutes from './teamRoutes.js'
 import batchRoutes from './batchRoutes.js'
 import candidateRoutes from './candidateRoutes.js'
+import employerResumeSearchRoutes from './employerResumeSearchRoutes.js'
 import interviewRoutes from './interviewRoutes.js'
 import offerRoutes from './offerRoutes.js'
 import notificationRoutes from './notificationRoutes.js'
 import pushRoutes from './pushRoutes.js'
+import { pushLimiter } from '../middleware/rateLimit.js'
 import billingRoutes from './billingRoutes.js'
 import employerSubscriptionRoutes from './employerSubscriptionRoutes.js'
 import { createGuestSubscriptionOrder } from '../controllers/employerSubscriptionController.js'
@@ -18,6 +20,7 @@ import employerPaymentsRoutes from './employerPaymentsRoutes.js'
 import employerCreditRoutes from './employerCreditRoutes.js'
 import employerUnlocksRoutes from './employerUnlocksRoutes.js'
 import { listCreditPlans } from '../controllers/employerCvCreditController.js'
+import { env } from '../config/env.js'
 import { requireAuth } from '../middleware/auth.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
@@ -58,6 +61,7 @@ import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 import publicJobRoutes from './publicJobRoutes.js'
+import accountDeletionRoutes from './accountDeletionRoutes.js'
 
 const employerRoutes = Router()
 employerRoutes.use('/auth', authRoutes)
@@ -66,6 +70,7 @@ employerRoutes.use('/jobs', jobRoutes)
 employerRoutes.use('/team', teamRoutes)
 employerRoutes.use('/batches', batchRoutes)
 employerRoutes.use('/candidates', candidateRoutes)
+employerRoutes.use('/resume-search', employerResumeSearchRoutes)
 employerRoutes.use('/interviews', interviewRoutes)
 employerRoutes.use('/offers', offerRoutes)
 employerRoutes.use('/notifications', notificationRoutes)
@@ -97,7 +102,7 @@ employeeRoutes.use('/notification-preferences', employeeNotificationPreferenceRo
 employeeRoutes.use('/mock-interview', employeeMockInterviewRoutes)
 employeeRoutes.use('/interviews', employeeInterviewRoutes)
 employeeRoutes.use('/notifications', employeeNotificationRoutes)
-employeeRoutes.use('/push', employeePushRoutes)
+employeeRoutes.use('/push', pushLimiter, employeePushRoutes)
 employeeRoutes.use('/messages', employeeMessageRoutes)
 employeeRoutes.use('/support', employeeSupportRoutes)
 
@@ -123,11 +128,16 @@ staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 
 const router = Router()
+// Public: the mobile app reads this at launch to decide whether it must force an update.
+router.get('/app-config', (_req, res) => {
+  res.json({ android: { minVersionCode: env.minAndroidVersionCode } })
+})
 router.use('/employer', employerRoutes)
 router.use('/employee', employeeRoutes)
 router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
 router.use('/push', publicPushRoutes)
 router.use('/jobs', publicJobRoutes)
+router.use('/account-deletion', accountDeletionRoutes)
 
 export default router

@@ -5,12 +5,23 @@ import Application from '../models/Application.js'
 import Candidate from '../models/Candidate.js'
 import Batch from '../models/Batch.js'
 import Job from '../models/Job.js'
+import { publicJobFilter } from '../utils/jobQueryFilters.js'
+import { isReviewAccount } from '../utils/reviewLogin.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
   const set = new Set(employeeSkills.map((s) => s.toLowerCase()))
   const matches = jobSkills.filter((s) => set.has(s.toLowerCase())).length
   return Math.round((matches / jobSkills.length) * 100)
+}
+
+// Free-plan cap on total (lifetime) applications — premium is unlimited.
+// Withdrawn applications still count: withdrawing doesn't refund the slot,
+// same as a spent credit elsewhere in this app.
+export const FREE_APPLICATION_LIMIT = 5
+
+export async function countApplications(employeeId) {
+  return Application.countDocuments({ employee: employeeId })
 }
 
 export const listApplications = asyncHandler(async (req, res) => {
@@ -35,8 +46,29 @@ export const applyToJob = asyncHandler(async (req, res) => {
     return res.status(403).json({ message: 'Your resume must be verified before you can apply' })
   }
 
-  const job = await Job.findOne({ _id: jobId, visibleToCandidates: true, status: { $in: ['sourcing', 'delivered'] } })
-  if (!job) return res.status(404).json({ message: 'Job not found' })
+  if (!employee.isPremium) {
+    const applicationCount = await countApplications(employee._id)
+    if (applicationCount >= FREE_APPLICATION_LIMIT) {
+      return res.status(403).json({
+        message: `Free accounts can apply to up to ${FREE_APPLICATION_LIMIT} jobs. Upgrade to premium for unlimited applications.`,
+        code: 'FREE_APPLICATION_LIMIT_REACHED',
+      })
+    }
+  }
+
+  const job = await Job.findOne({ _id: jobId, ...publicJobFilter() })
+  if (!job) {
+    // Distinguish "closed because its deadline passed" from "never existed / not public".
+    const { $and: _expiry, ...visibleOnly } = publicJobFilter()
+    const pastDeadline = await Job.exists({ _id: jobId, ...visibleOnly })
+    if (pastDeadline) return res.status(410).json({ message: 'The deadline to apply for this job has passed.' })
+    return res.status(404).json({ message: 'Job not found' })
+  }
+
+  // Urgent-hiring roles are a premium perk: free accounts can see them but not apply.
+  if (job.instantHiring && !employee.isPremium) {
+    return res.status(403).json({ message: 'Urgent hiring jobs are for premium members. Upgrade to apply.', code: 'PREMIUM_REQUIRED' })
+  }
 
   const existing = await Application.findOne({ employee: employee._id, job: job._id })
   if (existing) return res.status(409).json({ message: 'You have already applied to this job' })
@@ -49,7 +81,17 @@ export const applyToJob = asyncHandler(async (req, res) => {
     statusHistory: [{ status: 'new', changedOn: appliedOn, changedBy: 'employee' }],
     fit: fitScore(employee.skills, job.skills),
     appliedOn,
+    premium: employee.isPremium,
   })
+
+  // The app-review account can use every feature, but its applications are a dry run: they are
+  // recorded for the reviewer to see, and never create a candidate for a real employer.
+  if (isReviewAccount(employee)) {
+    application.statusHistory.push({ status: 'shared', changedOn: appliedOn, changedBy: 'employee' })
+    application.status = 'shared'
+    await application.save()
+    return res.status(201).json(application)
+  }
 
   // Reaches the employer immediately — no staff dispatch step. Mirrors the
   // field-copy staffBatchController.dispatchBatch used to do manually.
@@ -77,6 +119,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
     source: 'Mzobs Verified Pool',
     stage: 'shared',
     sharedOn: appliedOn,
+    premium: employee.isPremium,
   })
 
   // Mark the application as already delivered so it never gets picked up a

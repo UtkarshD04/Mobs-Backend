@@ -43,7 +43,7 @@ export const listEligibleApplications = asyncHandler(async (req, res) => {
       select:
         'name email phone skills experience experienceYears location resume.status resume.file resume.version resume.uploadedOn resume.score skillTrack education projects workHistory portfolioLink',
     })
-    .sort({ fit: -1 })
+    .sort({ premium: -1, fit: -1 })
     .limit(500)
 
   res.json(applications.filter((a) => a.employee))
@@ -101,6 +101,7 @@ export const dispatchBatch = asyncHandler(async (req, res) => {
       source: 'Mzobs Verified Pool',
       stage: 'shared',
       sharedOn: new Date(),
+      premium: employee.isPremium,
     })
     createdCandidates.push(candidate)
 

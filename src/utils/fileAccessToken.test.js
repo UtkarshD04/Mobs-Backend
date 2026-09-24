@@ -14,6 +14,18 @@ describe('signFileAccessToken / verifyFileAccessToken', () => {
     assert.equal(payload.purpose, 'employee-resume')
   })
 
+  test('round-trips localPath for a legacy pre-S3-migration resume', () => {
+    const token = signFileAccessToken({ localPath: '/uploads/resumes/legacy-123.pdf', filename: 'legacy-123.pdf', purpose: 'staff-resume' })
+    const payload = verifyFileAccessToken(token)
+    assert.equal(payload.localPath, '/uploads/resumes/legacy-123.pdf')
+    assert.equal(payload.s3Key, undefined)
+  })
+
+  test('rejects a token with neither s3Key nor localPath', () => {
+    const token = jwt.sign({ type: 'file-access', filename: 'x.pdf' }, env.jwtSecret, { expiresIn: '10m' })
+    assert.throws(() => verifyFileAccessToken(token))
+  })
+
   test('rejects a token of the wrong type, even if signed with the right secret — closes the replay gap between employee/staff/employer auth tokens and file-access tokens', () => {
     const otherToken = jwt.sign({ type: 'employee', sub: 'someone' }, env.jwtSecret, { expiresIn: '1h' })
     assert.throws(() => verifyFileAccessToken(otherToken))

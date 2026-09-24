@@ -8,6 +8,29 @@ export const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Internsh
 export const TRACKS = ['analytics', 'design', 'sales', 'marketing', 'hr', 'support', 'tech', 'ops']
 export const PUBLIC_STATUSES = ['sourcing', 'delivered']
 
+// Job.deadline is stored as the 'YYYY-MM-DD' string a <input type="date"> produces,
+// which sorts correctly as text. A job stays listed through the whole deadline day
+// (India time, since that's the calendar the employer picked the date in) and drops
+// off the next day. A missing or non-ISO deadline never expires a job — better to
+// keep showing an oddly-formatted legacy posting than to hide it by mistake.
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000
+
+export function todayIST(now = new Date()) {
+  return new Date(now.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10)
+}
+
+export function notExpiredClause(now = new Date()) {
+  return { $or: [{ deadline: { $not: ISO_DATE_RE } }, { deadline: { $gte: todayIST(now) } }] }
+}
+
+// The one definition of "a job candidates can see": visible, in a public status,
+// and not past its deadline. Evaluated per call (never cache it at module level,
+// the date moves). Safe to spread and add other keys, but don't overwrite `$and`.
+export function publicJobFilter(now = new Date()) {
+  return { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES }, $and: [notExpiredClause(now)] }
+}
+
 // '0-1' is kept (rather than a plain '0') for compatibility with the
 // existing Landing Frontend "Freshers" link (?experience=0-1).
 export const EXPERIENCE_RANGES = {
@@ -27,8 +50,12 @@ export const SALARY_RANGES = {
   '15+': { min: 1500000, max: Infinity },
 }
 
-export const POSTED_WITHIN_DAYS = [1, 3, 7, 30]
-export const SORT_OPTIONS = ['newest', 'salary_desc', 'salary_asc', 'relevance']
+export const POSTED_WITHIN_DAYS = [1, 3, 7, 15, 30]
+// "My experience is N years" — matches jobs whose [experienceMin, experienceMax] contains N.
+export const MAX_EXPERIENCE_YEARS = 40
+// 'nearest' only takes effect when the request also carries valid lat/lng
+// (see parseJobFilters below) — falls back to 'newest' otherwise.
+export const SORT_OPTIONS = ['newest', 'salary_desc', 'salary_asc', 'relevance', 'nearest']
 // Caps how many comma-separated q/location terms one request can carry (a
 // multi-tag search box on the frontend) — keeps the alternation regex built
 // in buildJobQuery small and bounded regardless of what a client sends.
@@ -49,6 +76,12 @@ export function parseCsv(value) {
 function allowlisted(values, allowed) {
   const allowedSet = new Set(allowed)
   return values.filter((v) => allowedSet.has(v))
+}
+
+function parseExperienceYears(value) {
+  if (value == null || value === '') return null
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 0 && n <= MAX_EXPERIENCE_YEARS ? n : null
 }
 
 // Turns raw, untrusted req.query into a normalized, allowlisted filter
@@ -77,11 +110,18 @@ export function parseJobFilters(query = {}) {
     track: allowlisted(parseCsv(query.track ?? query.department), TRACKS),
     experience: allowlisted(parseCsv(query.experience), Object.keys(EXPERIENCE_RANGES)),
     salary: allowlisted(parseCsv(query.salary), Object.keys(SALARY_RANGES)),
+    experienceYears: parseExperienceYears(query.experienceYears),
     skills: parseCsv(query.skills).slice(0, 20).map((s) => s.slice(0, 60)),
     postedWithinDays: POSTED_WITHIN_DAYS.includes(Number(query.postedWithin)) ? Number(query.postedWithin) : null,
     companyIds: parseCsv(query.company).filter((id) => OBJECT_ID_RE.test(id)),
     ids: parseCsv(query.ids).filter((id) => OBJECT_ID_RE.test(id)),
     sort: SORT_OPTIONS.includes(query.sort) ? query.sort : 'newest',
+    // Device/browser geolocation, sent only when the candidate opted in and
+    // only meaningful together with sort=nearest — validated properly by
+    // isValidCoord (utils/geo.js) at the point of use, this is just a lenient
+    // numeric parse so an absent/malformed pair doesn't throw here.
+    lat: query.lat !== undefined && Number.isFinite(Number(query.lat)) ? Number(query.lat) : null,
+    lng: query.lng !== undefined && Number.isFinite(Number(query.lng)) ? Number(query.lng) : null,
   }
 }
 
@@ -105,7 +145,8 @@ export function salaryOverlapQuery(rangeKeys) {
   if (!ranges.length) return null
   return {
     $or: ranges.map(({ min, max }) => {
-      const cond = { salaryMax: { $gte: min } }
+      // Jobs that don't disclose pay are stored as 0-0; they must not match the "0-3 lakh" band.
+      const cond = { salaryMax: { $gte: Math.max(min, 1) } }
       if (Number.isFinite(max)) cond.salaryMin = { $lte: max }
       return cond
     }),
@@ -122,7 +163,7 @@ export function postedWithinQuery(days) {
 // caller (a small Company.find({name: regex}) lookup) since this module
 // stays DB-free; passing an empty array simply skips that OR-branch.
 export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
-  const query = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
+  const { $and: _expiry, ...query } = publicJobFilter()
   const and = []
 
   if (filters.ids.length) query._id = { $in: filters.ids }
@@ -140,6 +181,10 @@ export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
 
   const salaryQuery = salaryOverlapQuery(filters.salary)
   if (salaryQuery) and.push(salaryQuery)
+
+  if (filters.experienceYears != null) {
+    and.push({ experienceMin: { $lte: filters.experienceYears }, experienceMax: { $gte: filters.experienceYears } })
+  }
 
   const postedQuery = postedWithinQuery(filters.postedWithinDays)
   if (postedQuery) Object.assign(query, postedQuery)
@@ -167,7 +212,9 @@ export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
     and.push({ $or: or })
   }
 
-  if (and.length) query.$and = and
+  // Always last, so the clauses above keep their positions.
+  and.push(notExpiredClause())
+  query.$and = and
   return query
 }
 

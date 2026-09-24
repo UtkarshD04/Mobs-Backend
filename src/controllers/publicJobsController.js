@@ -1,11 +1,13 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STATUSES } from '../utils/jobQueryFilters.js'
+import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobFilter } from '../utils/jobQueryFilters.js'
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
 import { aggregateHiringCompanies } from '../utils/hiringCompanies.js'
+import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
+import Employee from '../models/Employee.js'
 
 // This whole file is the public, unauthenticated surface the marketing site
 // (Website/Landing-Frontend) searches against directly — no employee account
@@ -101,6 +103,15 @@ export const listLatestJobs = asyncHandler(async (req, res) => {
   const matchingCompanyIdsForQ = await resolveMatchingCompanyIds(filters.q)
   const query = buildJobQuery(filters, { matchingCompanyIdsForQ })
   const { page, limit, skip } = teaserPaginationParams(req)
+
+  if (filters.sort === 'nearest' && isValidCoord(filters.lat, filters.lng)) {
+    const { jobs, total } = await nearbyJobsPage(Job, query, { lat: filters.lat, lng: filters.lng, page, limit })
+    res.set('X-Total-Count', String(total))
+    res.set('X-Page', String(page))
+    res.set('X-Limit', String(limit))
+    return res.json(jobs.map(toLatestJobSummary))
+  }
+
   const sort = buildSortStage(filters)
 
   const [jobs, total] = await Promise.all([
@@ -123,7 +134,7 @@ const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/
 // only round-trips when that state is missing.
 export const getLatestJob = asyncHandler(async (req, res) => {
   if (!OBJECT_ID_RE.test(req.params.id)) return res.status(404).json({ message: 'Job not found' })
-  const job = await Job.findOne({ _id: req.params.id, visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }).populate(
+  const job = await Job.findOne({ _id: req.params.id, ...publicJobFilter() }).populate(
     'company',
     'name logo'
   )
@@ -136,14 +147,14 @@ export const getLatestJob = asyncHandler(async (req, res) => {
 // title/skill/company suggestion groups below.
 function groupValueCounts(field) {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $group: { _id: `$${field}`, count: { $sum: 1 } } },
   ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
 }
 
 function groupSkillCounts() {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $unwind: '$skills' },
     { $group: { _id: '$skills', count: { $sum: 1 } } },
   ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
@@ -154,7 +165,7 @@ function groupSkillCounts() {
 // exact/starts-with/contains way as everything else.
 function groupCompanyCounts() {
   return Job.aggregate([
-    { $match: { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } } },
+    { $match: publicJobFilter() },
     { $group: { _id: '$company', count: { $sum: 1 } } },
     { $lookup: { from: 'companies', localField: '_id', foreignField: '_id', as: 'company' } },
     { $unwind: '$company' },
@@ -180,8 +191,7 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
     const [cityRows, remoteCount] = await Promise.all([
       groupValueCounts('location'),
       Job.countDocuments({
-        visibleToCandidates: true,
-        status: { $in: PUBLIC_STATUSES },
+        ...publicJobFilter(),
         $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
       }),
     ])
@@ -235,7 +245,7 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
 // `department` field, so it's counted by matching that instead, same as
 // every other number here: a real query result, never a hardcoded figure.
 export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
-  const baseMatch = { visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } }
+  const baseMatch = publicJobFilter()
   const [trackRows, freshers, remote, finance] = await Promise.all([
     Job.aggregate([{ $match: baseMatch }, { $group: { _id: '$track', count: { $sum: 1 } } }]),
     Job.countDocuments(buildJobQuery(parseJobFilters({ experience: '0-1' }))),
@@ -251,6 +261,20 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
   res.json({ tracks, freshers, remote, finance })
 })
 
+// Real, live platform-scale numbers for the employer marketing page (the
+// "how big is your candidate database" stats an employer wants before they
+// sign up) — same "a real query result, never a hardcoded figure" rule as
+// every other public number here.
+export const getPublicPlatformStats = asyncHandler(async (req, res) => {
+  const [verifiedCandidates, verifiedEmployers, liveJobs] = await Promise.all([
+    Employee.countDocuments({ 'resume.status': 'verified' }),
+    Company.countDocuments({ verificationStatus: 'verified' }),
+    Job.countDocuments(publicJobFilter()),
+  ])
+
+  res.json({ verifiedCandidates, verifiedEmployers, liveJobs })
+})
+
 // Real, live per-city × category stats for the Landing Frontend's "Hot Jobs
 // by City" section — see hotCities.js for the aggregation itself (pure,
 // unit-tested, no DB access) and HOT_CITIES for the curated city list. One
@@ -259,8 +283,7 @@ export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
 // cheaper than 60 separate city×filter round trips.
 export const getPublicHotCities = asyncHandler(async (req, res) => {
   const jobs = await Job.find({
-    visibleToCandidates: true,
-    status: { $in: PUBLIC_STATUSES },
+    ...publicJobFilter(),
     location: { $in: HOT_CITIES.map((c) => c.match) },
   })
     .select('location track department salaryMin salaryMax postedOn createdAt company')

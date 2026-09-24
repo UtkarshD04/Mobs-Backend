@@ -4,6 +4,7 @@ import { paymentLimiter } from '../middleware/rateLimit.js'
 import {
   getSubscription,
   getAccessStatus,
+  previewSubscriptionCoupon,
   createSubscriptionOrder,
   verifySubscriptionPayment,
   confirmMockSubscriptionPayment,
@@ -15,6 +16,7 @@ router.use(requireAuth)
 
 router.get('/', getSubscription)
 router.get('/access-status', getAccessStatus)
+router.post('/coupon/preview', paymentLimiter, previewSubscriptionCoupon)
 router.post('/order', paymentLimiter, createSubscriptionOrder)
 router.post('/verify-payment', paymentLimiter, verifySubscriptionPayment)
 router.post('/mock-confirm', paymentLimiter, confirmMockSubscriptionPayment)

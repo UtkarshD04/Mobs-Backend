@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireStaffAuth, requireAdmin } from '../middleware/staffAuth.js'
-import { listJobs, getJob, createJob, approveJob, recordJobPayment, notifyHr } from '../controllers/staffJobController.js'
+import { listJobs, getJob, createJob, approveJob, setJobUrgent, recordJobPayment, notifyHr } from '../controllers/staffJobController.js'
 
 const router = Router()
 
@@ -10,6 +10,7 @@ router.get('/', listJobs)
 router.post('/', createJob)
 router.get('/:id', getJob)
 router.patch('/:id/approve', approveJob)
+router.patch('/:id/urgent', setJobUrgent)
 router.patch('/:id/payment', recordJobPayment)
 router.post('/:id/notify-hr', notifyHr)
 

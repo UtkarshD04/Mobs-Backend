@@ -17,6 +17,16 @@ function getTransporter() {
   return transporter
 }
 
+function htmlToText(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // Falls back to logging the email when SMTP isn't configured, so local dev
 // and environments without mail credentials don't crash the reset flow.
 export async function sendMail({ to, subject, html, text }) {
@@ -27,5 +37,14 @@ export async function sendMail({ to, subject, html, text }) {
     return
   }
 
-  await client.sendMail({ from: env.smtp.from, to, subject, html, text })
+  // Sending HTML with no plain-text alternative is a well-known spam-filter
+  // signal (Gmail/Outlook weigh it heavily) — always include one.
+  await client.sendMail({
+    from: env.smtp.from,
+    replyTo: env.smtp.replyTo || undefined,
+    to,
+    subject,
+    html,
+    text: text ?? (html ? htmlToText(html) : undefined),
+  })
 }

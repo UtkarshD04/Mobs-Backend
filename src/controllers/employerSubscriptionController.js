@@ -1,20 +1,36 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { getRazorpayClient, isRazorpayConfigured } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
-import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
+import { getEmployerPlans, getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
 import { getEffectiveSubscription } from '../utils/employerSubscriptionAccess.js'
 import { activateEmployerSubscription } from '../utils/activateEmployerSubscription.js'
+import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
 import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import EmployerSubscription from '../models/EmployerSubscription.js'
 import Payment from '../models/Payment.js'
 
-// GET /api/employer/subscription — current plan state plus the launch
-// plan's pricing, so the frontend never has to hardcode ₹999 or the GST math.
+const SUBSCRIPTION_COUPON_PURPOSE = 'employer_subscription'
+
+// Looks up and prices a coupon against a specific plan tier's total price —
+// mirrors employerCvCreditController's priceCvCreditPlanWithCoupon. Returns
+// null (no coupon requested) or `{ coupon, discountAmount, amountRupees }`
+// with `amountRupees` already discounted.
+async function priceEmployerPlanWithCoupon(pricing, couponCode) {
+  if (!couponCode) return null
+  const baseAmountRupees = pricing.totalAmountPaise / 100
+  const coupon = await findApplicableCoupon(couponCode, SUBSCRIPTION_COUPON_PURPOSE, baseAmountRupees)
+  const discountAmount = computeDiscount(coupon, baseAmountRupees)
+  return { coupon, discountAmount, amountRupees: Math.round((baseAmountRupees - discountAmount) * 100) / 100 }
+}
+
+// GET /api/employer/subscription — current plan state plus every purchasable
+// tier's pricing, so the frontend never has to hardcode ₹999/₹1499/₹1999 or
+// the GST math.
 export const getSubscription = asyncHandler(async (req, res) => {
   const { subscription, isActive } = await getEffectiveSubscription(req.company._id)
-  res.json({ subscription, isActive, pricing: getEmployerPlanPricing() })
+  res.json({ subscription, isActive, plans: getEmployerPlans() })
 })
 
 // GET /api/employer/subscription/access-status — a lightweight boolean the
@@ -87,19 +103,65 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
   })
 })
 
-// POST /api/employer/subscription/order — creates a Razorpay order for the
-// fixed, server-computed plan price. The amount never comes from the client.
+// POST /api/employer/subscription/coupon/preview — { planCode, code }. Prices
+// a coupon against a specific tier's price without creating an order, so the
+// Plans page can show the discounted price as soon as the employer types a
+// code. Re-validated independently (and for real) when the order is actually
+// created below — this is a preview only, never the source of truth for what
+// gets charged.
+export const previewSubscriptionCoupon = asyncHandler(async (req, res) => {
+  const { planCode, code } = req.body ?? {}
+  if (!code) return res.status(400).json({ message: 'Coupon code is required' })
+  if (!getEmployerPlans().some((p) => p.planCode === planCode)) {
+    return res.status(404).json({ message: 'This plan is not available' })
+  }
+
+  const pricing = getEmployerPlanPricing(planCode)
+  try {
+    const priced = await priceEmployerPlanWithCoupon(pricing, code)
+    res.json({
+      valid: true,
+      code: priced.coupon.code,
+      originalAmount: Math.round(pricing.totalAmountPaise / 100),
+      discountAmount: priced.discountAmount,
+      finalAmount: priced.amountRupees,
+    })
+  } catch (err) {
+    if (err instanceof CouponError) return res.status(400).json({ valid: false, message: err.message })
+    throw err
+  }
+})
+
+// POST /api/employer/subscription/order — { planCode, couponCode? }. Creates
+// a Razorpay order for the server-computed price of the chosen plan tier.
+// The amount never comes from the client — only which plan (by code) and an
+// optional coupon code, which is itself re-validated and re-priced here
+// (never trusts the preview alone).
 export const createSubscriptionOrder = asyncHandler(async (req, res) => {
   const { isActive } = await getEffectiveSubscription(req.company._id)
   if (isActive) return res.status(409).json({ message: 'Your employer plan is already active' })
 
-  const pricing = getEmployerPlanPricing()
+  const { planCode, couponCode } = req.body ?? {}
+  if (!getEmployerPlans().some((p) => p.planCode === planCode)) {
+    return res.status(404).json({ message: 'This plan is not available' })
+  }
+  const pricing = getEmployerPlanPricing(planCode)
+
+  let priced
+  try {
+    priced = await priceEmployerPlanWithCoupon(pricing, couponCode)
+  } catch (err) {
+    if (err instanceof CouponError) return res.status(400).json({ message: err.message })
+    throw err
+  }
+  const amountPaise = priced ? Math.round(priced.amountRupees * 100) : pricing.totalAmountPaise
+
   const receipt = `empsub_${req.company._id}_${Date.now()}`
 
-  let order = buildMockOrder(pricing.totalAmountPaise, receipt)
+  let order = buildMockOrder(amountPaise, receipt)
   if (!order) {
     const rzpOrder = await getRazorpayClient().orders.create({
-      amount: pricing.totalAmountPaise,
+      amount: amountPaise,
       currency: pricing.currency,
       receipt,
       notes: { purpose: 'employer_subscription', companyId: req.company._id.toString(), planCode: pricing.planCode },
@@ -128,7 +190,9 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     employerSubscription: subscription._id,
     razorpayOrderId: order.orderId,
     amount: order.amount / 100, // Payment.amount is rupees, matching every other Payment row
-    originalAmount: pricing.baseAmountPaise / 100,
+    originalAmount: Math.round(pricing.totalAmountPaise / 100),
+    couponCode: priced ? priced.coupon.code : null,
+    discountAmount: priced ? priced.discountAmount : 0,
     currency: order.currency,
     status: 'created',
     receipt,
@@ -145,6 +209,8 @@ export const createSubscriptionOrder = asyncHandler(async (req, res) => {
     description: `${pricing.planName} — 1 year`,
     prefill: { name: req.user.name, email: req.user.email },
     pricing,
+    couponCode: priced ? priced.coupon.code : null,
+    discountAmount: priced ? priced.discountAmount : 0,
   })
 })
 
@@ -196,6 +262,7 @@ export const verifySubscriptionPayment = asyncHandler(async (req, res) => {
   payment.status = 'paid'
   payment.paidAt = new Date()
   await payment.save()
+  await incrementCouponUsage(payment.couponCode)
 
   await activateEmployerSubscription(subscription, payment)
 
@@ -229,6 +296,7 @@ export const confirmMockSubscriptionPayment = asyncHandler(async (req, res) => {
     payment.razorpayPaymentId = `mock_payment_${Date.now()}`
     payment.paidAt = new Date()
     await payment.save()
+    await incrementCouponUsage(payment.couponCode)
   }
 
   await activateEmployerSubscription(subscription, payment)

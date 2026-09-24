@@ -67,6 +67,7 @@ export const createJob = asyncHandler(async (req, res) => {
     deadline: body.deadline,
     status: 'sourcing',
     visibleToCandidates: true,
+    instantHiring: body.instantHiring === true,
     submittedOn: now,
     postedOn: now,
     updatedOn: now,
@@ -105,12 +106,13 @@ export const getJob = asyncHandler(async (req, res) => {
 // decides whether it should show on the employee-facing job board, and
 // raises the sourcing-fee invoice.
 export const approveJob = asyncHandler(async (req, res) => {
-  const { vacancies, visibleToCandidates, track } = req.body ?? {}
+  const { vacancies, visibleToCandidates, track, instantHiring } = req.body ?? {}
   const job = await Job.findById(req.params.id)
   if (!job) return res.status(404).json({ message: 'Job not found' })
 
   if (vacancies !== undefined) job.vacancies = vacancies
   if (track !== undefined) job.track = track
+  if (instantHiring !== undefined) job.instantHiring = instantHiring === true
   job.visibleToCandidates = visibleToCandidates ?? true
   job.feeTotal = feeFor(job.vacancies)
   job.resumesPromised = resumesFor(job.vacancies)
@@ -196,4 +198,15 @@ export const notifyHr = asyncHandler(async (req, res) => {
   await logStaffActivity(`${req.staff.name} requested candidates from HR for "${job.title}"`, 'gold')
 
   res.json({ notified: hrStaff.length })
+})
+
+// Flags (or un-flags) a job as "Urgent hiring". Urgent jobs are listed in the candidate
+// apps' Urgent hiring section; everyone can see them but only premium members can apply.
+export const setJobUrgent = asyncHandler(async (req, res) => {
+  const { instantHiring } = req.body ?? {}
+  if (typeof instantHiring !== 'boolean') return res.status(400).json({ message: 'instantHiring must be true or false' })
+  // A targeted update, so an older job that predates a newer required field can still be flagged.
+  const job = await Job.findByIdAndUpdate(req.params.id, { $set: { instantHiring, updatedOn: new Date() } }, { new: true }).populate('company', 'name logo')
+  if (!job) return res.status(404).json({ message: 'Job not found' })
+  res.json(job)
 })
