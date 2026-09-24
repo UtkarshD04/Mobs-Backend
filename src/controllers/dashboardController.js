@@ -27,6 +27,8 @@ export const getDashboard = asyncHandler(async (req, res) => {
   const activeInterviews = interviews.filter((i) => i.status !== 'Cancelled')
   const hiredCandidates = candidates.filter((c) => c.stage === 'hired')
 
+  const shortlistedCandidates = candidates.filter((c) => ['shortlisted', 'interviewing', 'offered', 'hired'].includes(c.stage))
+
   const stats = {
     openRequirements: activeJobs.length,
     openRequirementsDelta: weekDelta(jobs.filter((j) => j.createdAt >= since).length),
@@ -34,6 +36,8 @@ export const getDashboard = asyncHandler(async (req, res) => {
     openingsPaidDelta: weekDelta(jobs.filter((j) => j.paidOn && j.paidOn >= since).length),
     resumesReceived: sum(jobs, 'candidatesShared'),
     resumesReceivedDelta: weekDelta(0),
+    shortlisted: shortlistedCandidates.length,
+    shortlistedDelta: weekDelta(shortlistedCandidates.filter((c) => c.updatedAt >= since).length),
     interviewsScheduled: activeInterviews.length,
     interviewsDelta: weekDelta(interviews.filter((i) => i.createdAt >= since).length),
     offersSent: offers.length,
@@ -78,5 +82,94 @@ export const getDashboard = asyncHandler(async (req, res) => {
     .sort({ startsAt: 1 })
     .limit(4)
 
-  res.json({ stats, funnel, trend, departments, activity, upcomingInterviews })
+  // Per-requirement funnel counts for the dashboard's requirements table —
+  // derived from the candidates/interviews already loaded above, so no
+  // extra queries. Candidate.job -> Interview is joined via candidate.id
+  // since Interview only references the candidate, not the job directly.
+  const candidatesByJob = new Map()
+  candidates.forEach((c) => {
+    const jobId = String(c.job)
+    if (!candidatesByJob.has(jobId)) candidatesByJob.set(jobId, [])
+    candidatesByJob.get(jobId).push(c)
+  })
+  const jobIdByCandidateId = new Map(candidates.map((c) => [String(c._id), String(c.job)]))
+  const interviewCountByJob = new Map()
+  interviews
+    .filter((i) => i.status !== 'Cancelled')
+    .forEach((i) => {
+      const jobId = jobIdByCandidateId.get(String(i.candidate))
+      if (!jobId) return
+      interviewCountByJob.set(jobId, (interviewCountByJob.get(jobId) ?? 0) + 1)
+    })
+
+  const activeRequirements = activeJobs
+    .slice()
+    .sort((a, b) => b.updatedOn - a.updatedOn)
+    .slice(0, 8)
+    .map((j) => {
+      const jobCandidates = candidatesByJob.get(String(j._id)) ?? []
+      return {
+        id: j._id,
+        title: j.title,
+        location: j.location,
+        applicants: jobCandidates.length,
+        shortlisted: jobCandidates.filter((c) => ['shortlisted', 'interviewing', 'offered', 'hired'].includes(c.stage)).length,
+        interviews: interviewCountByJob.get(String(j._id)) ?? 0,
+        status: j.status,
+        createdOn: j.postedOn ?? j.createdAt,
+      }
+    })
+
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+  const todaySchedule = interviews
+    .filter((i) => i.status !== 'Cancelled' && i.startsAt >= todayStart && i.startsAt < todayEnd)
+    .sort((a, b) => a.startsAt - b.startsAt)
+    .map((i) => ({ id: i._id, candidateName: i.candidateName, role: i.role, startsAt: i.startsAt, mode: i.mode, status: i.status }))
+
+  // Multi-series performance trend for the dashboard's analytics chart, bucketed
+  // by day (7d/30d) or by week (90d). Derived entirely from documents already
+  // loaded above — "shortlisted"/"hired" use updatedAt as a proxy for "reached
+  // that stage on this date" since stage-transition history isn't tracked
+  // separately; everything else uses its own createdAt/sharedOn.
+  function buildPerformanceSeries(days, bucketDays) {
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    const bucketMs = bucketDays * 24 * 60 * 60 * 1000
+    const numBuckets = Math.ceil(days / bucketDays)
+    const series = []
+    for (let i = 0; i < numBuckets; i++) {
+      const bucketStart = new Date(start.getTime() + i * bucketMs)
+      const bucketEnd = new Date(Math.min(bucketStart.getTime() + bucketMs, now.getTime() + 1))
+      const inBucket = (d) => d && d >= bucketStart && d < bucketEnd
+      series.push({
+        label: bucketStart.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+        applications: candidates.filter((c) => inBucket(c.sharedOn)).length,
+        shortlisted: candidates.filter((c) => ['shortlisted', 'interviewing', 'offered', 'hired'].includes(c.stage) && inBucket(c.updatedAt)).length,
+        interviews: interviews.filter((iv) => inBucket(iv.createdAt)).length,
+        offers: offers.filter((o) => inBucket(o.createdAt)).length,
+        hired: candidates.filter((c) => c.stage === 'hired' && inBucket(c.updatedAt)).length,
+      })
+    }
+    return series
+  }
+
+  const performance = {
+    '7d': buildPerformanceSeries(7, 1),
+    '30d': buildPerformanceSeries(30, 1),
+    '90d': buildPerformanceSeries(90, 7),
+  }
+
+  // Candidate-stage pipeline (distinct from `funnel` above, which tracks Mzobs's
+  // sourcing fulfilment) — cumulative counts per Candidate.stage, each paired
+  // with the `stage` query param Candidates.jsx expects so dashboard cards
+  // can deep-link straight into the matching filtered list.
+  const pipeline = [
+    { key: 'applicants', label: 'Applicants', value: candidates.length, stageParam: 'all' },
+    { key: 'shortlisted', label: 'Shortlisted', value: shortlistedCandidates.length, stageParam: 'shortlisted' },
+    { key: 'interviewing', label: 'Interview', value: candidates.filter((c) => ['interviewing', 'offered', 'hired'].includes(c.stage)).length, stageParam: 'interviewing' },
+    { key: 'offered', label: 'Offer', value: candidates.filter((c) => ['offered', 'hired'].includes(c.stage)).length, stageParam: 'offered' },
+    { key: 'hired', label: 'Hired', value: hiredCandidates.length, stageParam: 'hired' },
+  ]
+
+  res.json({ stats, funnel, pipeline, trend, performance, departments, activity, upcomingInterviews, activeRequirements, todaySchedule })
 })
