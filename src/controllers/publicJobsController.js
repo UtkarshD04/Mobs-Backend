@@ -3,6 +3,7 @@ import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, PUBLIC_STA
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
+import { aggregateHiringCompanies } from '../utils/hiringCompanies.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 
@@ -267,4 +268,20 @@ export const getPublicHotCities = asyncHandler(async (req, res) => {
     .lean()
 
   res.json({ cities: aggregateHotCities(jobs) })
+})
+
+// Real, live "which companies are actively hiring right now" for the
+// Landing Frontend's "Companies Hiring Through MZOBS" section — see
+// hiringCompanies.js for the aggregation itself (pure, unit-tested, no DB
+// access). A company only ever appears here if it genuinely has at least
+// one live, public job this instant — there is no separate "featured
+// companies" list to fall back on.
+export const getPublicHiringCompanies = asyncHandler(async (req, res) => {
+  const jobs = await Job.find({ visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } })
+    .select('location track department workMode company')
+    .populate('company', 'name logo website verificationStatus blocked')
+    .lean()
+
+  const companies = aggregateHiringCompanies(jobs)
+  res.json({ companies, total: companies.length })
 })
