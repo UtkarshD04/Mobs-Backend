@@ -6,6 +6,7 @@ import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
+import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
@@ -91,7 +92,7 @@ export const stats = asyncHandler(async (req, res) => {
 
 async function notifyAssignment(staff, body) {
   const notification = await StaffNotification.create({ staff: staff._id, category: 'resumes', title: 'Resume assigned to you', body })
-  await sendPush(staff, { title: notification.title, body: notification.body })
+  await sendPush(staff, { title: notification.title, body: notification.body, data: { url: staffNotificationUrl(notification.category) } })
 }
 
 export const assign = asyncHandler(async (req, res) => {

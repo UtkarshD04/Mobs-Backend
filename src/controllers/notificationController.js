@@ -5,6 +5,7 @@ import Candidate from '../models/Candidate.js'
 import Employee from '../models/Employee.js'
 import { sendPush } from '../utils/push.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
+import { employerNotificationUrl } from '../utils/notificationLinks.js'
 
 function toNotification(n) {
   return {
@@ -39,7 +40,7 @@ export const sendTestPush = asyncHandler(async (req, res) => {
     title: 'Test notification',
     body: `Hey ${req.user.name}, push notifications are working.`,
   })
-  await sendPush(req.user, { title: notification.title, body: notification.body })
+  await sendPush(req.user, { title: notification.title, body: notification.body, data: { url: employerNotificationUrl(notification.category) } })
   res.status(201).json(toNotification(notification))
 })
 

@@ -1,8 +1,9 @@
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from './push.js'
+import { staffNotificationUrl } from './notificationLinks.js'
 
 export async function notifyStaff(staff, { category, title, body }) {
   const notification = await StaffNotification.create({ staff: staff._id, category, title, body })
-  await sendPush(staff, { title: notification.title, body: notification.body })
+  await sendPush(staff, { title: notification.title, body: notification.body, data: { url: staffNotificationUrl(category) } })
   return notification
 }

@@ -8,6 +8,7 @@ import { sendPush } from '../utils/push.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 import { notifyEmployer } from '../utils/notifyEmployer.js'
 import { notifyStaff } from '../utils/notifyStaff.js'
+import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 
 // Any staff member (admin or ops) can manually message any employee, employer
@@ -88,6 +89,6 @@ export const sendTestPush = asyncHandler(async (req, res) => {
     title: 'Test notification',
     body: `Hey ${req.staff.name}, push notifications are working.`,
   })
-  await sendPush(req.staff, { title: notification.title, body: notification.body })
+  await sendPush(req.staff, { title: notification.title, body: notification.body, data: { url: staffNotificationUrl(notification.category) } })
   res.status(201).json(toNotification(notification))
 })

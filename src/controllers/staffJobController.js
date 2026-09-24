@@ -4,6 +4,7 @@ import { logActivity } from '../utils/activityLog.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import { sendPush } from '../utils/push.js'
+import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Batch from '../models/Batch.js'
@@ -188,7 +189,7 @@ export const notifyHr = asyncHandler(async (req, res) => {
   await Promise.all(
     hrStaff.map(async (staff) => {
       const notification = await StaffNotification.create({ staff: staff._id, category: 'requirements', title: 'Candidates needed', body: title })
-      await sendPush(staff, { title: notification.title, body: notification.body })
+      await sendPush(staff, { title: notification.title, body: notification.body, data: { url: staffNotificationUrl(notification.category) } })
     })
   )
 

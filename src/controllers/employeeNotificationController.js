@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import EmployeeNotification from '../models/EmployeeNotification.js'
 import { sendPush } from '../utils/push.js'
+import { employeeNotificationUrl } from '../utils/notificationLinks.js'
 
 function toNotification(n) {
   return {
@@ -36,6 +37,6 @@ export const sendTestPush = asyncHandler(async (req, res) => {
     title: 'Test notification',
     body: `Hey ${req.employee.name}, push notifications are working.`,
   })
-  await sendPush(req.employee, { title: notification.title, body: notification.body })
+  await sendPush(req.employee, { title: notification.title, body: notification.body, data: { url: employeeNotificationUrl(notification.category) } })
   res.status(201).json(toNotification(notification))
 })

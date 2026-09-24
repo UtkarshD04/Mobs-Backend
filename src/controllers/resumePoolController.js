@@ -6,6 +6,7 @@ import Resume from '../models/Resume.js'
 import StaffUser from '../models/StaffUser.js'
 import StaffNotification from '../models/StaffNotification.js'
 import { sendPush } from '../utils/push.js'
+import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import { uploadObject, deleteObject, isS3Configured } from '../utils/s3.js'
 import { validateResumeFile, RESUME_POOL_ALLOWED_EXTENSIONS } from '../utils/fileValidation.js'
 import { resumePoolKey, buildResumeAccessPath } from '../utils/resumeAccess.js'
@@ -138,7 +139,7 @@ export const stats = asyncHandler(async (req, res) => {
 
 async function notifyAssignment(staff, body) {
   const notification = await StaffNotification.create({ staff: staff._id, category: 'resume-pool', title: 'Resume assigned to you', body })
-  await sendPush(staff, { title: notification.title, body: notification.body })
+  await sendPush(staff, { title: notification.title, body: notification.body, data: { url: staffNotificationUrl(notification.category) } })
 }
 
 export const assign = asyncHandler(async (req, res) => {

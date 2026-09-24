@@ -1,6 +1,7 @@
 import EmployeeNotification from '../models/EmployeeNotification.js'
 import NotificationPreference from '../models/NotificationPreference.js'
 import { sendPush } from './push.js'
+import { employeeNotificationUrl } from './notificationLinks.js'
 
 export async function notifyEmployee(employee, { category, title, body }) {
   // No preference doc yet defaults to in-app on (see NotificationPreference's
@@ -9,6 +10,6 @@ export async function notifyEmployee(employee, { category, title, body }) {
   if (prefs && prefs[category]?.inApp === false) return null
 
   const notification = await EmployeeNotification.create({ employee: employee._id, category, title, body })
-  await sendPush(employee, { title: notification.title, body: notification.body })
+  await sendPush(employee, { title: notification.title, body: notification.body, data: { url: employeeNotificationUrl(category) } })
   return notification
 }

@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js'
 import User from '../models/User.js'
 import { sendPush } from './push.js'
+import { employerNotificationUrl } from './notificationLinks.js'
 
 // Notification.company is the recipient unit — every seat at that company
 // shares the one feed — but push tokens live per-User, so a single
@@ -8,6 +9,7 @@ import { sendPush } from './push.js'
 export async function notifyEmployer(company, { category, title, body }) {
   const notification = await Notification.create({ company: company._id, category, title, body })
   const users = await User.find({ company: company._id })
-  await Promise.all(users.map((user) => sendPush(user, { title: notification.title, body: notification.body })))
+  const url = employerNotificationUrl(category)
+  await Promise.all(users.map((user) => sendPush(user, { title: notification.title, body: notification.body, data: { url } })))
   return notification
 }
