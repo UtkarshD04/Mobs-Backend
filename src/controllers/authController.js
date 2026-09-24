@@ -12,7 +12,8 @@ import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
-import { ONE_YEAR_MS } from '../utils/activateEmployerSubscription.js'
+import { ONE_YEAR_MS, grantPlanCvCredits } from '../utils/activateEmployerSubscription.js'
+import { logger } from '../config/logger.js'
 import { logActivity } from '../utils/activityLog.js'
 import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import User from '../models/User.js'
@@ -345,6 +346,12 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
   await payment.save()
 
   await logActivity(company._id, `${pricing.planName} activated (guest checkout) — valid until ${expiresAt.toLocaleDateString('en-IN')}`, 'green')
+
+  // Same as activateEmployerSubscription: a failed grant must not fail the
+  // signup; it stays ungranted for scripts/grant-plan-cv-credits.js.
+  await grantPlanCvCredits(subscription).catch((err) => {
+    logger.error({ err, subscriptionId: subscription._id.toString() }, 'Failed to grant plan CV credits')
+  })
 
   res.status(201).json({ ...authResponse(user, company), tempPassword, placeholderEmail })
 })

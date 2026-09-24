@@ -28,6 +28,10 @@ const employerSubscriptionSchema = new Schema(
     // rendered back to any client (same treatment as Payment.razorpaySignature).
     razorpaySignature: { type: String, default: null, select: false },
     invoiceId: { type: String, default: null },
+    // How many plan-included CV credits went to the wallet for this period.
+    // null = not granted yet; set atomically before the grant so it only
+    // ever happens once (see grantPlanCvCredits).
+    cvCreditsGranted: { type: Number, default: null },
   },
   { timestamps: true }
 )

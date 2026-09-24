@@ -7,7 +7,7 @@ import { env } from '../config/env.js'
 // invoice convention in env.gst. Shared by every tier in env.employerPlan.plans.
 function priceOne(planDef) {
   const { billingPeriod, gstMode, gstRatePercent } = env.employerPlan
-  const { planCode, planName, amountPaise, benefits } = planDef
+  const { planCode, planName, amountPaise, cvCredits, benefits } = planDef
 
   const baseAmountPaise = Math.round(amountPaise)
   let gstAmountPaise
@@ -31,7 +31,8 @@ function priceOne(planDef) {
     gstAmountPaise,
     totalAmountPaise, // what Razorpay actually charges
     currency: 'INR',
-    benefits,
+    cvCredits,
+    benefits: cvCredits > 0 ? [`${cvCredits} CV credits included`, ...benefits] : benefits,
   }
 }
 
@@ -47,4 +48,11 @@ export function getEmployerPlans() {
 export function getEmployerPlanPricing(planCode) {
   const def = (planCode && env.employerPlan.plans.find((p) => p.planCode === planCode)) || env.employerPlan.plans[0]
   return priceOne(def)
+}
+
+// CV credits a tier includes, by exact code — no fallback to the base tier,
+// so a subscription on a retired/unknown code gets null instead of a guess.
+export function getEmployerPlanCvCredits(planCode) {
+  const def = env.employerPlan.plans.find((p) => p.planCode === planCode)
+  return def ? def.cvCredits : null
 }
