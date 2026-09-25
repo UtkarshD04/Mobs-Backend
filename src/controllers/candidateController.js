@@ -6,6 +6,7 @@ import Batch from '../models/Batch.js'
 import Employee from '../models/Employee.js'
 import ResumeAccessLog from '../models/ResumeAccessLog.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
+import { REVEAL_PARTS, revealedParts, parseRevealField } from '../utils/candidateReveal.js'
 import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { hasActiveEmployerSubscription } from '../utils/employerSubscriptionAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
@@ -34,31 +35,37 @@ export function maskPhone(phone) {
 // CV credit to unlock this specific candidate (`unlocked`). This keeps a
 // bulk `GET /candidates` call from ever leaking private data for a
 // candidate nobody has paid to unlock, credit balance or not.
+//
+// Unlocking is per part: one credit buys the candidate, but email, phone and
+// resume are each opened on their own click (`revealed`, a Set of
+// 'email' | 'phone' | 'resume'; null = all three, for callers that don't track
+// parts). Only a revealed part is ever sent.
 // Exported for direct unit testing (see candidateRedaction.test.js).
-export function redactCandidate(candidate, unlocked) {
+export function redactCandidate(candidate, unlocked, revealed = null) {
   const json = typeof candidate.toJSON === 'function' ? candidate.toJSON() : candidate
   const rawEmail = json.email
   const rawPhone = json.phone
+  const parts = unlocked ? (revealed ?? new Set(REVEAL_PARTS)) : new Set()
   json.contactPreview = { email: maskEmail(rawEmail), phone: maskPhone(rawPhone) }
   json.unlocked = !!unlocked
-  if (!unlocked) {
-    json.email = null
-    json.phone = null
-  }
+  json.revealed = [...parts]
+  if (!parts.has('email')) json.email = null
+  if (!parts.has('phone')) json.phone = null
   json.resumeUrl = null
   return json
 }
 
-async function unlockedCandidateIdSet(companyId, candidateIds) {
-  const rows = await CandidateUnlock.find({ company: companyId, candidate: { $in: candidateIds } }).select('candidate')
-  return new Set(rows.map((r) => r.candidate.toString()))
+// candidateId → the parts revealed for it (only candidates this company has paid for).
+async function revealedPartsByCandidateId(companyId, candidateIds) {
+  const rows = await CandidateUnlock.find({ company: companyId, candidate: { $in: candidateIds } }).select('candidate revealed')
+  return new Map(rows.map((r) => [r.candidate.toString(), revealedParts(r)]))
 }
 
 async function redactList(companyId, candidates) {
   const isList = Array.isArray(candidates)
   const list = isList ? candidates : [candidates]
-  const unlockedIds = await unlockedCandidateIdSet(companyId, list.map((c) => c._id))
-  const redacted = list.map((c) => redactCandidate(c, unlockedIds.has(c._id.toString())))
+  const partsById = await revealedPartsByCandidateId(companyId, list.map((c) => c._id))
+  const redacted = list.map((c) => redactCandidate(c, partsById.has(c._id.toString()), partsById.get(c._id.toString())))
   return isList ? redacted : redacted[0]
 }
 
@@ -96,8 +103,9 @@ export const getCandidate = asyncHandler(async (req, res) => {
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
 
   const unlock = await CandidateUnlock.findOne({ company: req.company._id, candidate: candidate._id })
-  const json = redactCandidate(candidate, !!unlock)
-  if (unlock) {
+  const parts = revealedParts(unlock)
+  const json = redactCandidate(candidate, !!unlock, parts)
+  if (parts.has('resume')) {
     json.resumeUrl = await resolveCandidateResumeUrl(candidate, 'employer-cv-credit-unlock')
   }
   res.json(json)
@@ -108,6 +116,9 @@ export const getCandidate = asyncHandler(async (req, res) => {
 // (idempotent: calling again just returns the existing unlock, no further
 // charge — see unlockCandidateForCredit).
 export const unlockCandidate = asyncHandler(async (req, res) => {
+  const reveal = parseRevealField(req.body?.field)
+  if (!reveal) return res.status(400).json({ message: 'field must be one of: email, phone, resume' })
+
   const candidate = await Candidate.findOne({ _id: req.params.id, company: req.company._id })
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
 
@@ -118,6 +129,7 @@ export const unlockCandidate = asyncHandler(async (req, res) => {
       candidateId: candidate._id,
       jobId: candidate.job ?? null,
       userId: req.user._id,
+      reveal,
     })
   } catch (err) {
     if (err instanceof InsufficientCreditsError) {
@@ -139,8 +151,9 @@ export const unlockCandidate = asyncHandler(async (req, res) => {
   }
 
   const wallet = await getWalletBalance(req.company._id)
-  const json = redactCandidate(candidate, true)
-  json.resumeUrl = await resolveCandidateResumeUrl(candidate, 'employer-cv-credit-unlock')
+  const parts = revealedParts(result.unlock)
+  const json = redactCandidate(candidate, true, parts)
+  if (parts.has('resume')) json.resumeUrl = await resolveCandidateResumeUrl(candidate, 'employer-cv-credit-unlock')
 
   res.json({ candidate: json, wallet, alreadyUnlocked: result.alreadyUnlocked, unlock: result.unlock })
 })

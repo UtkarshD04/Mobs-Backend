@@ -11,6 +11,7 @@ import ResumeAccessLog from '../models/ResumeAccessLog.js'
 import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { findOrCreateSourcedCandidate, JobNotFoundError } from '../utils/resdexSourcing.js'
+import { REVEAL_PARTS, revealedParts, parseRevealField } from '../utils/candidateReveal.js'
 import { logger } from '../config/logger.js'
 
 // Resdex-style resume database search: every candidate account on the
@@ -20,7 +21,12 @@ import { logger } from '../config/logger.js'
 // credit to unlock — same wallet, same CandidateUnlock rows, same masking
 // as the Applicants list, so both surfaces share one "unlocked" concept per
 // (company, candidate).
-function redactEmployee(employee, { unlocked, candidateId }) {
+//
+// Per-part reveals: one credit unlocks the candidate, but email, phone and
+// resume are opened one at a time (`revealed`, a Set of 'email' | 'phone' |
+// 'resume'; null = all three). Only a revealed part is ever sent.
+export function redactEmployee(employee, { unlocked, candidateId, revealed = null }) {
+  const parts = unlocked ? (revealed ?? new Set(REVEAL_PARTS)) : new Set()
   return {
     id: employee._id.toString(),
     employeeId: employee._id.toString(),
@@ -57,8 +63,9 @@ function redactEmployee(employee, { unlocked, candidateId }) {
     phoneVerified: !!employee.phoneVerified,
     contactPreview: { email: maskEmail(employee.email), phone: maskPhone(employee.phone) },
     unlocked,
-    email: unlocked ? employee.email : null,
-    phone: unlocked ? employee.phone : null,
+    revealed: [...parts],
+    email: parts.has('email') ? employee.email : null,
+    phone: parts.has('phone') ? employee.phone : null,
     resumeUrl: null,
   }
 }
@@ -91,15 +98,15 @@ export const searchResumeDatabase = asyncHandler(async (req, res) => {
 
   const candidateIds = [...candidateIdByEmployee.values()]
   const unlocks = candidateIds.length
-    ? await CandidateUnlock.find({ company: req.company._id, candidate: { $in: candidateIds } }).select('candidate')
+    ? await CandidateUnlock.find({ company: req.company._id, candidate: { $in: candidateIds } }).select('candidate revealed')
     : []
-  const unlockedCandidateIds = new Set(unlocks.map((u) => u.candidate.toString()))
+  const partsByCandidateId = new Map(unlocks.map((u) => [u.candidate.toString(), revealedParts(u)]))
 
   res.json(
     data.map((employee) => {
       const candidateId = candidateIdByEmployee.get(employee._id.toString()) ?? null
-      const unlocked = candidateId ? unlockedCandidateIds.has(candidateId) : false
-      return redactEmployee(employee, { unlocked, candidateId })
+      const revealed = candidateId ? partsByCandidateId.get(candidateId) : undefined
+      return redactEmployee(employee, { unlocked: !!revealed, candidateId, revealed })
     })
   )
 })
@@ -113,7 +120,7 @@ export const getResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id }).select('_id')
   const unlock = candidate ? await CandidateUnlock.findOne({ company: req.company._id, candidate: candidate._id }) : null
 
-  res.json(redactEmployee(employee, { unlocked: !!unlock, candidateId: candidate?._id?.toString() ?? null }))
+  res.json(redactEmployee(employee, { unlocked: !!unlock, candidateId: candidate?._id?.toString() ?? null, revealed: unlock ? revealedParts(unlock) : null }))
 })
 
 // POST /api/employer/resume-search/:employeeId/unlock — spends 1 CV credit
@@ -124,6 +131,9 @@ export const getResumeDatabaseCandidate = asyncHandler(async (req, res) => {
 // viewing) an employee already sourced by this company reuses that same row
 // and never charges twice.
 export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
+  const reveal = parseRevealField(req.body?.field)
+  if (!reveal) return res.status(400).json({ message: 'field must be one of: email, phone, resume' })
+
   const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
@@ -142,6 +152,7 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
       candidateId: candidate._id,
       jobId: candidate.job,
       userId: req.user._id,
+      reveal,
     })
   } catch (err) {
     if (err instanceof InsufficientCreditsError) {
@@ -160,8 +171,9 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   }
 
   const wallet = await getWalletBalance(req.company._id)
-  const json = redactEmployee(employee, { unlocked: true, candidateId: candidate._id.toString() })
-  json.resumeUrl = employeeResumeUrl(employee, 'employer-cv-credit-unlock')
+  const parts = revealedParts(result.unlock)
+  const json = redactEmployee(employee, { unlocked: true, candidateId: candidate._id.toString(), revealed: parts })
+  json.resumeUrl = parts.has('resume') ? employeeResumeUrl(employee, 'employer-cv-credit-unlock') : null
   json.resumeFileName = json.resumeUrl ? employee.resume.file || '' : ''
   res.json({ candidate: json, wallet, alreadyUnlocked: result.alreadyUnlocked })
 })
@@ -176,7 +188,11 @@ export const getResumeDatabaseResumeUrl = asyncHandler(async (req, res) => {
 
   const candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id }).select('_id application')
   const unlock = candidate ? await CandidateUnlock.findOne({ company: req.company._id, candidate: candidate._id }) : null
-  if (!unlock) return res.status(403).json({ code: 'UNLOCK_REQUIRED', message: 'Unlock this candidate with a CV credit to view their resume.' })
+  // Paying for the candidate isn't enough on its own: the resume is one of the
+  // parts the employer opens with its own click (see candidateReveal.js).
+  if (!unlock || !revealedParts(unlock).has('resume')) {
+    return res.status(403).json({ code: 'UNLOCK_REQUIRED', message: 'View this candidate\'s CV to open their resume.' })
+  }
 
   const url = employeeResumeUrl(employee, 'employer-resume')
   if (!url) return res.status(404).json({ message: 'Resume not available for this candidate' })

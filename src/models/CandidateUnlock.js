@@ -18,6 +18,11 @@ const candidateUnlockSchema = new Schema(
     creditsUsed: { type: Number, default: 1, min: 1 },
     unlockedAt: { type: Date, default: Date.now },
     unlockedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    // Which parts of the candidate the employer has opened so far — 'email',
+    // 'phone', 'resume' (see utils/candidateReveal.js). One credit covers all
+    // three, but each is revealed on its own click. Left undefined on rows
+    // created before this existed, which count as everything revealed.
+    revealed: { type: [String], default: undefined },
   },
   { timestamps: true }
 )

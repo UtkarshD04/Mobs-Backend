@@ -1,5 +1,6 @@
 import CvCreditSubscription from '../models/CvCreditSubscription.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
+import { addRevealedParts } from './candidateReveal.js'
 import CreditLedger from '../models/CreditLedger.js'
 import CreditPlan from '../models/CreditPlan.js'
 import Payment from '../models/Payment.js'
@@ -183,9 +184,14 @@ export async function activateCvCreditPurchase(paymentId, { razorpayPaymentId = 
 //     left), only one of their CandidateUnlock inserts can succeed — the
 //     loser's decrement is refunded, so net spend for that candidate is
 //     still exactly one credit.
-export async function unlockCandidateForCredit({ companyId, candidateId, jobId = null, userId = null }) {
+//
+// `reveal` is the list of parts (email/phone/resume) the caller is opening.
+// The credit is spent once per candidate, on the first reveal only; asking
+// for another part later adds it to the same unlock, free of charge. Omitted
+// (null) = a plain, everything-included unlock.
+export async function unlockCandidateForCredit({ companyId, candidateId, jobId = null, userId = null, reveal = null }) {
   const existing = await CandidateUnlock.findOne({ company: companyId, candidate: candidateId })
-  if (existing) return { unlock: existing, alreadyUnlocked: true }
+  if (existing) return { unlock: reveal ? await addRevealedParts(existing, reveal) : existing, alreadyUnlocked: true }
 
   const wallet = await CvCreditSubscription.findOneAndUpdate(
     { company: companyId, remainingCredits: { $gte: 1 } },
@@ -207,12 +213,13 @@ export async function unlockCandidateForCredit({ companyId, candidateId, jobId =
       creditsUsed: 1,
       unlockedAt: new Date(),
       unlockedBy: userId,
+      ...(reveal ? { revealed: reveal } : {}),
     })
   } catch (err) {
     await refundDecrement()
     if (err?.code === 11000) {
       const winner = await CandidateUnlock.findOne({ company: companyId, candidate: candidateId })
-      if (winner) return { unlock: winner, alreadyUnlocked: true }
+      if (winner) return { unlock: reveal ? await addRevealedParts(winner, reveal) : winner, alreadyUnlocked: true }
     }
     throw err
   }
