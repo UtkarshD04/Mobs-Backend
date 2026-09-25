@@ -6,11 +6,11 @@ import { parseResumeSearchFilters, buildResumeSearchQuery, baseResumeSearchFilte
 import { maskEmail, maskPhone } from './candidateController.js'
 import Employee from '../models/Employee.js'
 import Candidate from '../models/Candidate.js'
-import Job from '../models/Job.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
 import ResumeAccessLog from '../models/ResumeAccessLog.js'
 import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
+import { findOrCreateSourcedCandidate, JobNotFoundError } from '../utils/resdexSourcing.js'
 import { logger } from '../config/logger.js'
 
 // Resdex-style resume database search: every candidate account on the
@@ -118,47 +118,21 @@ export const getResumeDatabaseCandidate = asyncHandler(async (req, res) => {
 
 // POST /api/employer/resume-search/:employeeId/unlock — spends 1 CV credit
 // to unlock this candidate's contact + resume for this employer, same as
-// candidateController.unlockCandidate. The Candidate schema requires a
-// `job` (it's the same row the Applicants pipeline uses), so sourcing a
-// brand-new employee for the first time needs a jobId to attach them to;
-// re-unlocking (or just viewing) an employee already sourced by this
-// company reuses that same Candidate row and never charges twice.
+// candidateController.unlockCandidate. A first-time unlock adds the employee
+// to this company's Candidates (the Applicants pipeline's row); `jobId` is
+// optional and, when given, files them under that job. Re-unlocking (or just
+// viewing) an employee already sourced by this company reuses that same row
+// and never charges twice.
 export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
-  let candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id })
-  if (!candidate) {
-    const { jobId } = req.body ?? {}
-    if (!jobId) return res.status(400).json({ code: 'JOB_REQUIRED', message: 'Choose which of your job postings this candidate is being sourced for.' })
-
-    const job = await Job.findOne({ _id: jobId, company: req.company._id })
-    if (!job) return res.status(404).json({ message: 'Job not found' })
-
-    candidate = await Candidate.create({
-      company: req.company._id,
-      job: job._id,
-      employee: employee._id,
-      name: employee.name,
-      headline: employee.resumeHeadline,
-      appliedFor: job.title,
-      experienceYears: employee.experienceYears,
-      location: employee.currentCity,
-      expectedSalary: employee.expectedSalaryMax ? `₹${employee.expectedSalaryMax}` : '',
-      skills: employee.skills,
-      education: employee.education,
-      projects: employee.projects,
-      workHistory: employee.workHistory,
-      portfolioLink: employee.portfolioLink,
-      email: employee.email,
-      phone: employee.phone,
-      resumeVerified: employee.resume?.status === 'verified',
-      identityVerified: false,
-      source: 'Resdex Search',
-      stage: 'shared',
-      sharedOn: new Date(),
-      premium: !!employee.isPremium,
-    })
+  let candidate
+  try {
+    candidate = await findOrCreateSourcedCandidate({ companyId: req.company._id, employee, jobId: req.body?.jobId })
+  } catch (err) {
+    if (err instanceof JobNotFoundError) return res.status(404).json({ message: 'Job not found' })
+    throw err
   }
 
   let result

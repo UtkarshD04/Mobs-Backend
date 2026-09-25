@@ -5,7 +5,9 @@ import { initialsOf } from '../utils/initials.js'
 const candidateSchema = new Schema(
   {
     company: { type: Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
-    job: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
+    // Optional: a candidate sourced from the resume database by an employer
+    // with no job posting yet has none (see utils/resdexSourcing.js).
+    job: { type: Schema.Types.ObjectId, ref: 'Job', default: null },
     batch: { type: Schema.Types.ObjectId, ref: 'Batch', default: null },
     employee: { type: Schema.Types.ObjectId, ref: 'Employee', default: null },
     application: { type: Schema.Types.ObjectId, ref: 'Application', default: null },
