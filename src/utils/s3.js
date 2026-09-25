@@ -64,17 +64,29 @@ export async function objectExists(key) {
 }
 
 // Strips characters that would break the Content-Disposition header value —
-// the original filename is user-supplied.
-function sanitizeForHeader(name) {
-  return String(name ?? 'file').replace(/["\r\n]/g, '')
+// the original filename is user-supplied. Some uploads arrive with an
+// already URL-encoded name ("CV%20Ankit.pdf"), which is decoded back so the
+// saved file isn't named with literal %20s.
+export function sanitizeForHeader(name) {
+  let s = String(name ?? 'file')
+  if (/%[0-9a-f]{2}/i.test(s)) {
+    try {
+      s = decodeURIComponent(s)
+    } catch {
+      // not valid percent-encoding after all — keep the name as stored
+    }
+  }
+  return s.replace(/["\r\n]/g, '')
 }
 
-export async function getPresignedDownloadUrl(key, { expiresIn = 60, filename } = {}) {
+// `disposition: 'inline'` lets a browser tab / iframe render the file;
+// 'attachment' makes the browser save it instead.
+export async function getPresignedDownloadUrl(key, { expiresIn = 60, filename, disposition = 'inline' } = {}) {
   const s3 = requireClient()
   const command = new GetObjectCommand({
     Bucket: env.aws.bucket,
     Key: key,
-    ...(filename ? { ResponseContentDisposition: `inline; filename="${sanitizeForHeader(filename)}"` } : {}),
+    ...(filename ? { ResponseContentDisposition: `${disposition}; filename="${sanitizeForHeader(filename)}"` } : {}),
   })
   return getSignedUrl(s3, command, { expiresIn })
 }

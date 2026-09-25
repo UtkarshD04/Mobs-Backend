@@ -1,7 +1,7 @@
 import path from 'path'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { verifyFileAccessToken } from '../utils/fileAccessToken.js'
-import { getPresignedDownloadUrl, isS3Configured } from '../utils/s3.js'
+import { getPresignedDownloadUrl, isS3Configured, sanitizeForHeader } from '../utils/s3.js'
 import { logger } from '../config/logger.js'
 
 // Legacy pre-S3-migration resumes are stored under Backend/uploads/ on
@@ -21,7 +21,13 @@ const UPLOADS_ROOT = path.join(process.cwd(), 'uploads')
 // requireAuth/requireEmployeeAuth/requireStaffAuth) since a plain browser
 // navigation (window.open) can't attach an Authorization header; the
 // token's short expiry and narrow scope (one exact file) stand in for that.
+//
+// `?download=1` serves the file as an attachment (the browser saves it)
+// instead of inline (the browser opens it) — a frontend "Download" button
+// can't do that itself, since the `download` attribute is ignored for a
+// cross-origin link like this one.
 export const redeemResumeAccess = asyncHandler(async (req, res) => {
+  const asAttachment = req.query.download === '1'
   let payload
   try {
     payload = verifyFileAccessToken(req.params.token)
@@ -35,19 +41,25 @@ export const redeemResumeAccess = asyncHandler(async (req, res) => {
       logger.error({ localPath: payload.localPath }, 'Rejected legacy resume token pointing outside uploads root')
       return res.status(400).json({ message: 'Invalid file reference.' })
     }
-    return res.sendFile(resolved, (err) => {
+    const onSent = (err) => {
       if (err && !res.headersSent) {
         logger.error({ err, purpose: payload.purpose }, 'Failed to serve legacy resume file')
         res.status(404).json({ message: 'This resume is no longer available.' })
       }
-    })
+    }
+    if (asAttachment) return res.download(resolved, sanitizeForHeader(payload.filename || path.basename(resolved)), onSent)
+    return res.sendFile(resolved, onSent)
   }
 
   if (!isS3Configured()) return res.status(503).json({ message: 'File storage is not configured.' })
 
   let url
   try {
-    url = await getPresignedDownloadUrl(payload.s3Key, { expiresIn: 60, filename: payload.filename })
+    url = await getPresignedDownloadUrl(payload.s3Key, {
+      expiresIn: 60,
+      filename: payload.filename,
+      disposition: asAttachment ? 'attachment' : 'inline',
+    })
   } catch (err) {
     logger.error({ err, purpose: payload.purpose }, 'Failed to generate resume presigned URL')
     return res.status(502).json({ message: 'Could not open this file right now. Please try again.' })
