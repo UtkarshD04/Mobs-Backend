@@ -1,9 +1,9 @@
 import { Schema, model } from 'mongoose'
 import { applyIdTransform } from '../utils/toJSON.js'
 
-export const DOOT_STATUSES = ['New', 'Reviewing', 'Shortlisted', 'Selected', 'Rejected']
+export const ALLY_STATUSES = ['New', 'Reviewing', 'Shortlisted', 'Selected', 'Rejected']
 
-const dootApplicationSchema = new Schema(
+const allyApplicationSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: 200 },
@@ -14,7 +14,7 @@ const dootApplicationSchema = new Schema(
     experience: { type: String, required: true, trim: true, maxlength: 3000 },
     involvement: { type: String, trim: true, maxlength: 3000, default: '' },
     why: { type: String, required: true, trim: true, maxlength: 3000 },
-    status: { type: String, enum: DOOT_STATUSES, default: 'New' },
+    status: { type: String, enum: ALLY_STATUSES, default: 'New' },
     notes: { type: String, trim: true, maxlength: 3000, default: '' },
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date },
@@ -22,9 +22,9 @@ const dootApplicationSchema = new Schema(
   { timestamps: true }
 )
 
-dootApplicationSchema.index({ createdAt: -1 })
-dootApplicationSchema.index({ status: 1, createdAt: -1 })
+allyApplicationSchema.index({ createdAt: -1 })
+allyApplicationSchema.index({ status: 1, createdAt: -1 })
 
-applyIdTransform(dootApplicationSchema)
+applyIdTransform(allyApplicationSchema)
 
-export default model('DootApplication', dootApplicationSchema, 'campusmantriapplications')
+export default model('AllyApplication', allyApplicationSchema, 'campusmantriapplications')
