@@ -95,3 +95,14 @@ export const unlockLimiter = rateLimit({
   message: { message: 'Too many unlock requests. Please slow down and try again shortly.' },
   store: makeStore('rl:unlock:'),
 })
+
+// Recruiters emailing / texting candidates from the portal. A per-candidate
+// daily cap lives in utils/outreach.js; this blunts bulk scripts on top of it.
+export const outreachLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many messages sent. Please slow down and try again shortly.' },
+  store: makeStore('rl:outreach:'),
+})

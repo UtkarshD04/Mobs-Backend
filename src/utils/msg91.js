@@ -30,6 +30,28 @@ export async function sendOtp(phone) {
   }
 }
 
+export const isSmsConfigured = () => Boolean(env.msg91.authKey && env.msg91.smsTemplateId)
+
+// Sends the DLT-registered outreach template to one 10-digit Indian mobile
+// number through MSG91's Flow API. `variables` fill the template's ##name##
+// style placeholders. Like the OTP calls, MSG91 can answer HTTP 200 with
+// `{ type: 'error' }` (unapproved template, no balance, DND number…), so the
+// body is checked rather than trusting the status code. Returns MSG91's
+// request id.
+export async function sendSmsFlow(phone, variables) {
+  const { data } = await axios.post(
+    'https://control.msg91.com/api/v5/flow',
+    { template_id: env.msg91.smsTemplateId, short_url: '0', recipients: [{ mobiles: toMsg91Mobile(phone), ...variables }] },
+    { headers: { authkey: env.msg91.authKey, 'Content-Type': 'application/json', accept: 'application/json' } }
+  )
+  if (data?.type !== 'success') {
+    const err = new Error(data?.message || 'MSG91 rejected the SMS')
+    err.status = 502
+    throw err
+  }
+  return data.message ?? null
+}
+
 // Returns true if MSG91 confirms the code, false for a wrong/expired code.
 // Any other failure (bad auth key, network) throws so the caller 500s
 // instead of silently treating it as a wrong OTP.

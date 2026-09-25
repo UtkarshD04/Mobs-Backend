@@ -70,6 +70,11 @@ export const env = {
   msg91: {
     authKey: process.env.MSG91_AUTH_KEY ?? '',
     templateId: process.env.MSG91_OTP_TEMPLATE_ID ?? '',
+    // DLT-registered *outreach* SMS template (a recruiter texting a candidate
+    // from the portal). It must use exactly two variables, ##name## and
+    // ##company## — see utils/outreach.js for the wording to register. Blank =
+    // portal SMS reports "not set up" instead of sending.
+    smsTemplateId: process.env.MSG91_SMS_TEMPLATE_ID ?? '',
   },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download

@@ -17,6 +17,10 @@ function getTransporter() {
   return transporter
 }
 
+// sendMail below only logs when SMTP is missing; callers that must not pretend
+// a message went out (recruiter outreach) check this first.
+export const isMailConfigured = () => Boolean(env.smtp.host)
+
 function htmlToText(html) {
   return html
     .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -29,7 +33,7 @@ function htmlToText(html) {
 
 // Falls back to logging the email when SMTP isn't configured, so local dev
 // and environments without mail credentials don't crash the reset flow.
-export async function sendMail({ to, subject, html, text }) {
+export async function sendMail({ to, subject, html, text, replyTo }) {
   const client = getTransporter()
   if (!client) {
     logger.warn({ to, subject }, 'SMTP not configured — logging email instead of sending')
@@ -41,7 +45,7 @@ export async function sendMail({ to, subject, html, text }) {
   // signal (Gmail/Outlook weigh it heavily) — always include one.
   await client.sendMail({
     from: env.smtp.from,
-    replyTo: env.smtp.replyTo || undefined,
+    replyTo: replyTo || env.smtp.replyTo || undefined,
     to,
     subject,
     html,
