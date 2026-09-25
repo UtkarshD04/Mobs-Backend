@@ -31,7 +31,7 @@ const PHONE_RE = /^[6-9]\d{9}$/
 
 function issueToken(employee) {
   return jwt.sign({ sub: employee._id.toString(), type: 'employee' }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn,
+    expiresIn: env.employeeJwtExpiresIn,
   })
 }
 

@@ -11,6 +11,8 @@ export const env = {
   mongoUri: required('MONGO_URI'),
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
+  // Job-seeker (mobile app) sessions stay signed in for months; staff/employer keep the short one.
+  employeeJwtExpiresIn: process.env.EMPLOYEE_JWT_EXPIRES_IN ?? '90d',
   corsOrigin: (process.env.CORS_ORIGIN ?? 'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176,http://localhost:5177,http://localhost:5178')
     .split(',')
     .map((origin) => origin.trim())
