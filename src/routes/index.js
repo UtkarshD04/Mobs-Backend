@@ -25,6 +25,7 @@ import { requireAuth } from '../middleware/auth.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
+import campusMantriRoutes from './campusMantriRoutes.js'
 import employeeAuthRoutes from './employeeAuthRoutes.js'
 import employeeProfileRoutes from './employeeProfileRoutes.js'
 import employeeResumeRoutes from './employeeResumeRoutes.js'
@@ -59,6 +60,7 @@ import resumePoolRoutes from './resumePoolRoutes.js'
 import staffPushRoutes from './staffPushRoutes.js'
 import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
+import staffCampusMantriRoutes from './staffCampusMantriRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 import publicJobRoutes from './publicJobRoutes.js'
 import accountDeletionRoutes from './accountDeletionRoutes.js'
@@ -126,6 +128,7 @@ staffRoutes.use('/resume-pool', resumePoolRoutes)
 staffRoutes.use('/push', staffPushRoutes)
 staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
+staffRoutes.use('/campus-mantri', staffCampusMantriRoutes)
 
 const router = Router()
 // Public: the mobile app reads this at launch to decide whether it must force an update.
@@ -136,6 +139,7 @@ router.use('/employer', employerRoutes)
 router.use('/employee', employeeRoutes)
 router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
+router.use('/campus-mantri', campusMantriRoutes)
 router.use('/push', publicPushRoutes)
 router.use('/jobs', publicJobRoutes)
 router.use('/account-deletion', accountDeletionRoutes)
