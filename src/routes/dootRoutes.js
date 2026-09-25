@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { authLimiter } from '../middleware/rateLimit.js'
-import { submitApplication } from '../controllers/campusMantriController.js'
+import { submitApplication } from '../controllers/dootController.js'
 
 const router = Router()
 
