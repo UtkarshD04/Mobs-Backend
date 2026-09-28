@@ -78,11 +78,11 @@ export const env = {
     // portal SMS reports "not set up" instead of sending.
     smsTemplateId: process.env.MSG91_SMS_TEMPLATE_ID ?? '',
   },
-  // Anthropic API for AI candidate search. Blank key = /ai endpoints return 503 and the
+  // Groq API (free tier) for AI candidate search. Blank key = /ai endpoints return 503 and the
   // frontend falls back to its local parser.
-  anthropic: {
-    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
-    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+  groq: {
+    apiKey: process.env.GROQ_API_KEY ?? '',
+    model: process.env.GROQ_MODEL ?? 'openai/gpt-oss-20b',
   },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download
