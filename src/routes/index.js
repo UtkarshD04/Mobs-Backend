@@ -6,6 +6,7 @@ import teamRoutes from './teamRoutes.js'
 import batchRoutes from './batchRoutes.js'
 import candidateRoutes from './candidateRoutes.js'
 import employerResumeSearchRoutes from './employerResumeSearchRoutes.js'
+import aiRoutes from './aiRoutes.js'
 import interviewRoutes from './interviewRoutes.js'
 import offerRoutes from './offerRoutes.js'
 import notificationRoutes from './notificationRoutes.js'
@@ -73,6 +74,7 @@ employerRoutes.use('/team', teamRoutes)
 employerRoutes.use('/batches', batchRoutes)
 employerRoutes.use('/candidates', candidateRoutes)
 employerRoutes.use('/resume-search', employerResumeSearchRoutes)
+employerRoutes.use('/ai', aiRoutes)
 employerRoutes.use('/interviews', interviewRoutes)
 employerRoutes.use('/offers', offerRoutes)
 employerRoutes.use('/notifications', notificationRoutes)

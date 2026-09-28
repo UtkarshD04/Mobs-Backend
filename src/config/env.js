@@ -78,6 +78,12 @@ export const env = {
     // portal SMS reports "not set up" instead of sending.
     smsTemplateId: process.env.MSG91_SMS_TEMPLATE_ID ?? '',
   },
+  // Anthropic API for AI candidate search. Blank key = /ai endpoints return 503 and the
+  // frontend falls back to its local parser.
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5-20251001',
+  },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download
   // endpoints fail cleanly with a 503 instead of crashing (same no-op

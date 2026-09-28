@@ -106,3 +106,13 @@ export const outreachLimiter = rateLimit({
   message: { message: 'Too many messages sent. Please slow down and try again shortly.' },
   store: makeStore('rl:outreach:'),
 })
+
+// Each AI call costs money; this stops a script from running up the bill.
+export const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many AI searches. Please slow down and try again shortly.' },
+  store: makeStore('rl:ai:'),
+})
