@@ -90,3 +90,11 @@ export async function getPresignedDownloadUrl(key, { expiresIn = 60, filename, d
   })
   return getSignedUrl(s3, command, { expiresIn })
 }
+
+// Reads a whole object into memory. Only for small files (resumes are capped at
+// a few MB by the upload middleware) — used to extract searchable text.
+export async function downloadObject(key) {
+  const s3 = requireClient()
+  const res = await s3.send(new GetObjectCommand({ Bucket: env.aws.bucket, Key: key }))
+  return Buffer.from(await res.Body.transformToByteArray())
+}

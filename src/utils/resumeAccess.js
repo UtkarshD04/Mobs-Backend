@@ -41,7 +41,7 @@ export function buildLegacyResumeAccessPath(legacyUrl, filename, purpose) {
 export function serializeResumeSubdoc(resume, purpose) {
   const plain = typeof resume?.toObject === 'function' ? resume.toObject() : resume ? { ...resume } : resume
   if (!plain) return plain
-  const { s3Key, ...rest } = plain
+  const { s3Key, text: _searchText, ...rest } = plain // search text is internal, never sent back to clients
   if (s3Key) rest.url = buildResumeAccessPath(s3Key, rest.file, purpose)
   else if (rest.url) rest.url = buildLegacyResumeAccessPath(rest.url, rest.file, purpose)
   return rest

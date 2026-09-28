@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { uploadObject, deleteObject, isS3Configured } from '../utils/s3.js'
 import { validateResumeFile } from '../utils/fileValidation.js'
 import { employeeResumeKey, serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
+import { extractResumeText } from '../utils/resumeText.js'
 import { logger } from '../config/logger.js'
 
 function serialize(employee) {
@@ -48,6 +49,7 @@ export const uploadResumeFile = asyncHandler(async (req, res) => {
   employee.resume = {
     file: req.file.originalname,
     s3Key: key,
+    text: await extractResumeText(req.file.buffer, validated.ext),
     version: nextVersion,
     uploadedOn,
     // Verified immediately on upload — no staff review step to wait on.

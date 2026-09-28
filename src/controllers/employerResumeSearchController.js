@@ -67,6 +67,8 @@ export function redactEmployee(employee, { unlocked, candidateId, revealed = nul
     email: parts.has('email') ? employee.email : null,
     phone: parts.has('phone') ? employee.phone : null,
     resumeUrl: null,
+    // Words from inside the CV file, for search only — the UI never displays this.
+    resumeText: employee.resume?.text ?? '',
   }
 }
 
@@ -89,6 +91,7 @@ export const searchResumeDatabase = asyncHandler(async (req, res) => {
 
   const { data, page, limit, total } = await paginate(Employee, query, paginationParams(req), {
     sort: { profileCompletedAt: -1, updatedAt: -1 },
+    select: '+resume.text',
   })
   setPaginationHeaders(res, { page, limit, total })
 

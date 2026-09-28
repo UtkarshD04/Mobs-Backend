@@ -18,6 +18,9 @@ const resumeSchema = new Schema(
     // `.populate()`. Callers that mint a resume access link explicitly
     // `.select('+resume.s3Key')` (see resumeAccess.js usage sites).
     s3Key: { type: String, default: '', select: false },
+    // Plain text pulled from the file (contact details stripped) for recruiter search.
+    // select: false — only the resume-search list asks for it explicitly.
+    text: { type: String, default: '', select: false },
     version: { type: Number, default: 0 },
     uploadedOn: { type: Date, default: null },
     status: { type: String, enum: ['none', 'pending', 'verified', 'changes', 'rejected'], default: 'none' },
