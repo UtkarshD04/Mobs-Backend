@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { aggregateHiringCompanies } from './hiringCompanies.js'
+import { aggregateHiringCompanies, aggregateAllCompanies } from './hiringCompanies.js'
 
 function job(overrides = {}) {
   return {
@@ -77,5 +77,41 @@ describe('aggregateHiringCompanies', () => {
     const result = aggregateHiringCompanies(jobs)
     assert.equal(result.length, 1)
     assert.equal(result[0].activeJobs, 1)
+  })
+})
+
+function company(overrides = {}) {
+  return { _id: 'c1', name: 'Acme', logo: '', website: '', verificationStatus: 'verified', blocked: false, ...overrides }
+}
+
+describe('aggregateAllCompanies', () => {
+  test('a company with zero live jobs still appears, with activeJobs: 0', () => {
+    const result = aggregateAllCompanies([company()], [])
+    assert.equal(result.length, 1)
+    assert.equal(result[0].activeJobs, 0)
+    assert.equal(result[0].hiringStatus, 'onboarded')
+  })
+
+  test('blocked companies are excluded even with no jobs at all', () => {
+    assert.deepEqual(aggregateAllCompanies([company({ blocked: true })], []), [])
+  })
+
+  test('a company with live jobs is counted and marked active', () => {
+    const companies = [company()]
+    const jobs = [job(), job()]
+    const result = aggregateAllCompanies(companies, jobs)
+    assert.equal(result[0].activeJobs, 2)
+    assert.equal(result[0].hiringStatus, 'active')
+  })
+
+  test('sorted by activeJobs desc, then by name for ties (including all-zero ties)', () => {
+    const companies = [company({ _id: 'c2', name: 'Zeta' }), company({ _id: 'c1', name: 'Acme' }), company({ _id: 'c3', name: 'Beta' })]
+    const result = aggregateAllCompanies(companies, [])
+    assert.deepEqual(result.map((c) => c.name), ['Acme', 'Beta', 'Zeta'])
+  })
+
+  test('a job whose company was blocked/removed after posting does not crash the count', () => {
+    const result = aggregateAllCompanies([company()], [job({ company: { _id: 'c-other', name: 'Other' } })])
+    assert.equal(result[0].activeJobs, 0)
   })
 })

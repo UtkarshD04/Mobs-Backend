@@ -3,7 +3,7 @@ import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobF
 import { matchRank, buildSuggestions, buildGroupedSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jobSuggestionsFallback.js'
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
-import { aggregateHiringCompanies } from '../utils/hiringCompanies.js'
+import { aggregateAllCompanies } from '../utils/hiringCompanies.js'
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
@@ -293,18 +293,18 @@ export const getPublicHotCities = asyncHandler(async (req, res) => {
   res.json({ cities: aggregateHotCities(jobs) })
 })
 
-// Real, live "which companies are actively hiring right now" for the
-// Landing Frontend's "Companies Hiring Through MZOBS" section — see
-// hiringCompanies.js for the aggregation itself (pure, unit-tested, no DB
-// access). A company only ever appears here if it genuinely has at least
-// one live, public job this instant — there is no separate "featured
-// companies" list to fall back on.
+// Every real, onboarded, non-blocked company for the Landing Frontend's
+// "Companies Hiring on Mzobs" section — see hiringCompanies.js for the
+// aggregation itself (pure, unit-tested, no DB access). A company shows up
+// here whether or not it currently has a live job (activeJobs is simply 0
+// for one that doesn't) — there is no separate "featured companies" list,
+// this is every real employer that's joined the platform.
 export const getPublicHiringCompanies = asyncHandler(async (req, res) => {
-  const jobs = await Job.find({ visibleToCandidates: true, status: { $in: PUBLIC_STATUSES } })
-    .select('location track department workMode company')
-    .populate('company', 'name logo website verificationStatus blocked')
-    .lean()
+  const [companies, jobs] = await Promise.all([
+    Company.find({ blocked: { $ne: true } }).select('name logo website verificationStatus blocked').lean(),
+    Job.find(publicJobFilter()).select('location track department workMode company').lean(),
+  ])
 
-  const companies = aggregateHiringCompanies(jobs)
-  res.json({ companies, total: companies.length })
+  const result = aggregateAllCompanies(companies, jobs)
+  res.json({ companies: result, total: result.length })
 })

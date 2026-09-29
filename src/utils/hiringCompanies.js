@@ -41,26 +41,56 @@ export function aggregateHiringCompanies(jobs) {
     byCompany.get(id).jobs.push(job)
   }
 
-  return [...byCompany.values()]
-    .map(({ company, jobs: companyJobs }) => ({
-      id: String(company._id ?? company.id),
-      name: company.name,
-      logo: company.logo || '',
-      website: company.website || '',
-      verified: company.verificationStatus === 'verified',
-      activeJobs: companyJobs.length,
-      categories: categoryKeysFor(companyJobs),
-      locations: [...new Set(companyJobs.map((j) => (j.location ?? '').trim()).filter(Boolean))].slice(0, 4),
-      // Real, distinct Job.workMode values across this company's live jobs
-      // ('On-site' | 'Hybrid' | 'Remote') — lets the UI show "Remote" or
-      // "Hybrid" or both, rather than collapsing everything to one boolean.
-      workModes: [...new Set(companyJobs.map((j) => j.workMode).filter(Boolean))],
-      remoteAvailable: companyJobs.some((j) => j.workMode === 'Remote'),
-      // Every company this function returns has ≥1 real live job by
-      // construction (that's what put it in `byCompany` at all), so this is
-      // never a separate, independently-fakeable flag — just a readable
-      // label for the same fact `activeJobs > 0` already guarantees.
-      hiringStatus: 'active',
-    }))
-    .sort((a, b) => b.activeJobs - a.activeJobs)
+  return [...byCompany.values()].map(({ company, jobs: companyJobs }) => toCompanyEntry(company, companyJobs)).sort(byActiveJobsThenName)
+}
+
+function toCompanyEntry(company, companyJobs) {
+  return {
+    id: String(company._id ?? company.id),
+    name: company.name,
+    logo: company.logo || '',
+    website: company.website || '',
+    verified: company.verificationStatus === 'verified',
+    activeJobs: companyJobs.length,
+    categories: categoryKeysFor(companyJobs),
+    locations: [...new Set(companyJobs.map((j) => (j.location ?? '').trim()).filter(Boolean))].slice(0, 4),
+    // Real, distinct Job.workMode values across this company's live jobs
+    // ('On-site' | 'Hybrid' | 'Remote') — lets the UI show "Remote" or
+    // "Hybrid" or both, rather than collapsing everything to one boolean.
+    workModes: [...new Set(companyJobs.map((j) => j.workMode).filter(Boolean))],
+    remoteAvailable: companyJobs.some((j) => j.workMode === 'Remote'),
+    // `activeJobs > 0` for a company with live openings right now; a
+    // company with none is still a real, onboarded employer, just not
+    // currently hiring — see aggregateAllCompanies below.
+    hiringStatus: companyJobs.length > 0 ? 'active' : 'onboarded',
+  }
+}
+
+function byActiveJobsThenName(a, b) {
+  return b.activeJobs - a.activeJobs || a.name.localeCompare(b.name)
+}
+
+// `companies` — every non-blocked Company doc (id/name/logo/website/
+// verificationStatus), fetched independently of any job. `jobs` — the same
+// public/live job list aggregateHiringCompanies uses. Returns one entry per
+// onboarded company, whether or not it currently has a live job — the
+// "Companies Hiring on Mzobs" wall's marquee shows every real company that's
+// ever joined the platform, not just the ones hiring this instant. A company
+// with no live jobs gets activeJobs: 0 and hiringStatus: 'onboarded' rather
+// than being dropped, same real-data-only rule as everywhere else in this
+// file — nothing here is a fabricated/curated name.
+export function aggregateAllCompanies(companies, jobs) {
+  const jobsByCompany = new Map()
+  for (const job of jobs) {
+    const company = job.company
+    if (!company) continue
+    const id = String(company._id ?? company.id ?? company)
+    if (!jobsByCompany.has(id)) jobsByCompany.set(id, [])
+    jobsByCompany.get(id).push(job)
+  }
+
+  return companies
+    .filter((company) => !company.blocked)
+    .map((company) => toCompanyEntry(company, jobsByCompany.get(String(company._id ?? company.id)) ?? []))
+    .sort(byActiveJobsThenName)
 }
