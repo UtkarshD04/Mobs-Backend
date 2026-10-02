@@ -27,6 +27,7 @@ import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
 import allyRoutes from './allyRoutes.js'
+import associateRoutes from './associateRoutes.js'
 import employeeAuthRoutes from './employeeAuthRoutes.js'
 import employeeProfileRoutes from './employeeProfileRoutes.js'
 import employeeResumeRoutes from './employeeResumeRoutes.js'
@@ -62,6 +63,7 @@ import staffPushRoutes from './staffPushRoutes.js'
 import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import staffAllyRoutes from './staffAllyRoutes.js'
+import staffAssociateRoutes from './staffAssociateRoutes.js'
 import staffPremiumServiceRoutes from './staffPremiumServiceRoutes.js'
 import employeePremiumServiceRoutes from './employeePremiumServiceRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
@@ -134,6 +136,7 @@ staffRoutes.use('/push', staffPushRoutes)
 staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 staffRoutes.use('/ally', staffAllyRoutes)
+staffRoutes.use('/associates', staffAssociateRoutes)
 staffRoutes.use('/premium-services', staffPremiumServiceRoutes)
 staffRoutes.use('/doot', staffAllyRoutes)
 staffRoutes.use('/campus-mantri', staffAllyRoutes)
@@ -148,6 +151,7 @@ router.use('/employee', employeeRoutes)
 router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
 router.use('/ally', allyRoutes)
+router.use('/associates', associateRoutes)
 router.use('/doot', allyRoutes)
 router.use('/campus-mantri', allyRoutes)
 router.use('/push', publicPushRoutes)
