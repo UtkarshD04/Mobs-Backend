@@ -62,6 +62,8 @@ import staffPushRoutes from './staffPushRoutes.js'
 import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import staffAllyRoutes from './staffAllyRoutes.js'
+import staffPremiumServiceRoutes from './staffPremiumServiceRoutes.js'
+import employeePremiumServiceRoutes from './employeePremiumServiceRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 import publicJobRoutes from './publicJobRoutes.js'
 import accountDeletionRoutes from './accountDeletionRoutes.js'
@@ -109,6 +111,7 @@ employeeRoutes.use('/notifications', employeeNotificationRoutes)
 employeeRoutes.use('/push', pushLimiter, employeePushRoutes)
 employeeRoutes.use('/messages', employeeMessageRoutes)
 employeeRoutes.use('/support', employeeSupportRoutes)
+employeeRoutes.use('/premium-services', employeePremiumServiceRoutes)
 
 const staffRoutes = Router()
 staffRoutes.use('/auth', staffAuthRoutes)
@@ -131,6 +134,7 @@ staffRoutes.use('/push', staffPushRoutes)
 staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 staffRoutes.use('/ally', staffAllyRoutes)
+staffRoutes.use('/premium-services', staffPremiumServiceRoutes)
 staffRoutes.use('/doot', staffAllyRoutes)
 staffRoutes.use('/campus-mantri', staffAllyRoutes)
 

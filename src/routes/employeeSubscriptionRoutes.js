@@ -12,6 +12,7 @@ import {
   previewCoupon,
   downloadSubscriptionInvoice,
 } from '../controllers/employeeSubscriptionController.js'
+import { getPlan } from '../controllers/premiumServiceController.js'
 
 const router = Router()
 
@@ -19,6 +20,9 @@ const router = Router()
 // guest/marketing "pay first" checkout to preview a discount before an
 // order (or account) exists yet.
 router.post('/coupon/preview', paymentLimiter, previewCoupon)
+
+// Public — the Basic vs Premium comparison, fee and requestable services.
+router.get('/plan', getPlan)
 
 router.get('/', requireEmployeeAuth, getSubscription)
 router.get('/invoice', requireEmployeeAuth, downloadSubscriptionInvoice)

@@ -7,6 +7,7 @@ import Batch from '../models/Batch.js'
 import Job from '../models/Job.js'
 import { publicJobFilter } from '../utils/jobQueryFilters.js'
 import { isReviewAccount } from '../utils/reviewLogin.js'
+import { FREE_APPLICATION_LIMIT } from '../config/premiumPlan.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
@@ -17,8 +18,9 @@ function fitScore(employeeSkills = [], jobSkills = []) {
 
 // Free-plan cap on total (lifetime) applications — premium is unlimited.
 // Withdrawn applications still count: withdrawing doesn't refund the slot,
-// same as a spent credit elsewhere in this app.
-export const FREE_APPLICATION_LIMIT = 5
+// same as a spent credit elsewhere in this app. The number itself lives in
+// config/premiumPlan.js with the rest of the plan.
+export { FREE_APPLICATION_LIMIT }
 
 export async function countApplications(employeeId) {
   return Application.countDocuments({ employee: employeeId })

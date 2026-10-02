@@ -80,7 +80,7 @@ export const login = asyncHandler(async (req, res) => {
 
 export const signup = asyncHandler(async (req, res) => {
   const { companyName, name, email, phone, password, industry, size, website, hq, phoneToken } = req.body ?? {}
-  const required = { companyName, name, email, phone, password, industry, size, website, hq }
+  const required = { companyName, name, email, phone, password, industry, size }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All fields are required to register your company' })
   }
@@ -106,8 +106,8 @@ export const signup = asyncHandler(async (req, res) => {
     name: companyName.trim(),
     industry: industry.trim(),
     size,
-    website: website.trim(),
-    hq: hq.trim(),
+    website: typeof website === 'string' ? website.trim() : '',
+    hq: typeof hq === 'string' ? hq.trim() : '',
   })
 
   const passwordHash = await bcrypt.hash(password, 10)
@@ -155,7 +155,7 @@ export const googleLogin = asyncHandler(async (req, res) => {
 
 export const googleSignup = asyncHandler(async (req, res) => {
   const { credential, companyName, phone, industry, size, website, hq, phoneToken } = req.body ?? {}
-  const required = { companyName, phone, industry, size, website, hq }
+  const required = { companyName, phone, industry, size }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All company fields are required to register your company' })
   }
@@ -174,8 +174,8 @@ export const googleSignup = asyncHandler(async (req, res) => {
     name: companyName.trim(),
     industry: industry.trim(),
     size,
-    website: website.trim(),
-    hq: hq.trim(),
+    website: typeof website === 'string' ? website.trim() : '',
+    hq: typeof hq === 'string' ? hq.trim() : '',
   })
 
   const user = await User.create({

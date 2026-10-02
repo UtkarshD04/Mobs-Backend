@@ -8,7 +8,7 @@ import Payment from '../models/Payment.js'
 import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
 import { streamSubscriptionInvoice } from '../utils/invoicePdf.js'
 
-const DEFAULT_FEE = 99
+import { PREMIUM_FEE as DEFAULT_FEE } from '../config/premiumPlan.js'
 
 // Looks up and prices a coupon against the fixed subscription fee. Returns
 // null (no coupon requested) or `{ coupon, discountAmount, amount }` with
