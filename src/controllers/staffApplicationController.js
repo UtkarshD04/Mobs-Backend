@@ -3,15 +3,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import Application, { APPLICATION_STATUSES } from '../models/Application.js'
 import Employee from '../models/Employee.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
-
-const STATUS_UPDATE_MESSAGES = {
-  screening: (job) => `Your application for ${job} is now under screening.`,
-  shortlisted: (job) => `Your application for ${job} has been shortlisted.`,
-  shared: (job) => `Your profile for ${job} has been shared with the employer.`,
-  interview: (job) => `Your application for ${job} has moved to the interview stage.`,
-  selected: (job) => `You've been selected for ${job}. Congratulations!`,
-  rejected: (job) => `Your application for ${job} was not selected this time.`,
-}
+import { STATUS_UPDATE_MESSAGES } from '../utils/applicationSync.js'
 
 export const listApplications = asyncHandler(async (req, res) => {
   const { jobId, status } = req.query

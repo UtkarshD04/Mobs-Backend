@@ -30,6 +30,10 @@ const applicationSchema = new Schema(
     // Snapshot of the employee's subscription state at apply time — powers
     // priority sorting in staff triage without a join back to Employee.
     premium: { type: Boolean, default: false },
+    // First time the employer opened this candidate's profile or resume (null = not yet).
+    // Applications reach the employer the moment they're made, so 'shared' alone
+    // doesn't mean anyone has looked at it.
+    employerViewedOn: { type: Date, default: null },
   },
   { timestamps: true }
 )

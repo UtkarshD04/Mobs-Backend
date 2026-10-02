@@ -114,6 +114,9 @@ export function parseJobFilters(query = {}) {
     skills: parseCsv(query.skills).slice(0, 20).map((s) => s.slice(0, 60)),
     postedWithinDays: POSTED_WITHIN_DAYS.includes(Number(query.postedWithin)) ? Number(query.postedWithin) : null,
     companyIds: parseCsv(query.company).filter((id) => OBJECT_ID_RE.test(id)),
+    // 'only' = just the urgent-hiring jobs (Job.instantHiring), 'exclude' = everything else —
+    // lets the Landing page list urgent roles in their own section instead of the main feed.
+    urgent: ['only', 'exclude'].includes(query.urgent) ? query.urgent : null,
     ids: parseCsv(query.ids).filter((id) => OBJECT_ID_RE.test(id)),
     sort: SORT_OPTIONS.includes(query.sort) ? query.sort : 'newest',
     // Device/browser geolocation, sent only when the candidate opted in and
@@ -171,6 +174,8 @@ export function buildJobQuery(filters, { matchingCompanyIdsForQ = [] } = {}) {
   if (filters.workMode.length) query.workMode = { $in: filters.workMode }
   if (filters.employmentType.length) query.employmentType = { $in: filters.employmentType }
   if (filters.companyIds.length) query.company = { $in: filters.companyIds }
+  if (filters.urgent === 'only') query.instantHiring = true
+  else if (filters.urgent === 'exclude') query.instantHiring = { $ne: true }
 
   if (filters.skills.length) {
     query.skills = { $in: filters.skills.map((s) => new RegExp(`^${escapeRegex(s)}$`, 'i')) }

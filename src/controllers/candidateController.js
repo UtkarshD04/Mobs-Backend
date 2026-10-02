@@ -11,6 +11,7 @@ import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/res
 import { hasActiveEmployerSubscription } from '../utils/employerSubscriptionAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { logger } from '../config/logger.js'
+import { markApplicationViewed, syncApplicationStatusFromStage } from '../utils/applicationSync.js'
 
 // A user@example.com -> u***@example.com style mask — enough to show the
 // applicant has a real, reachable email/phone without revealing it before
@@ -82,6 +83,16 @@ async function resolveCandidateResumeUrl(candidate, purpose) {
   return resume.url ? buildLegacyResumeAccessPath(resume.url, resume.file, purpose) : null
 }
 
+// Best-effort: the employer's view must never fail because the candidate-side
+// "viewed" marker couldn't be saved.
+async function recordEmployerView(candidate) {
+  try {
+    await markApplicationViewed(candidate.application)
+  } catch (err) {
+    logger.warn({ err }, 'Failed to mark application as viewed by employer')
+  }
+}
+
 export const listCandidates = asyncHandler(async (req, res) => {
   const { search, jobId, stage } = req.query
   const query = { company: req.company._id }
@@ -101,6 +112,8 @@ export const listCandidates = asyncHandler(async (req, res) => {
 export const getCandidate = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findOne({ _id: req.params.id, company: req.company._id })
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
+
+  await recordEmployerView(candidate)
 
   const unlock = await CandidateUnlock.findOne({ company: req.company._id, candidate: candidate._id })
   const parts = revealedParts(unlock)
@@ -170,6 +183,12 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
   if (rejectionReason) candidate.rejectionReason = rejectionReason
 
   await candidate.save()
+
+  try {
+    await syncApplicationStatusFromStage(candidate, stage)
+  } catch (err) {
+    logger.warn({ err }, 'Failed to sync candidate stage onto the application')
+  }
 
   if (stage === 'hired' && !wasHired) {
     await logActivity(req.company._id, `${candidate.name} marked as hired`, 'green')
@@ -243,6 +262,7 @@ export const getCandidateResumeUrl = asyncHandler(async (req, res) => {
     action: 'resume_viewed',
     accessedBy: req.user._id,
   })
+  await recordEmployerView(candidate)
 
   res.json({ url })
 })

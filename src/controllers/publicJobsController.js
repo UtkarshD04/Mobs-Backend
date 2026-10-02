@@ -56,6 +56,7 @@ function toLatestJobSummary(job) {
     employmentType: job.employmentType,
     track: job.track,
     vacancies: job.vacancies,
+    instantHiring: !!job.instantHiring,
     postedDaysAgo,
     // Raw postedOn/deadline (on top of the derived postedDaysAgo above) —
     // needed for JobPosting structured data (datePosted/validThrough) on the

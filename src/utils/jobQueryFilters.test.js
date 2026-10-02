@@ -255,3 +255,18 @@ describe('experienceYears and 15-day freshness', () => {
     assert.equal(parseJobFilters({ postedWithin: '15' }).postedWithinDays, 15)
   })
 })
+
+describe('urgent filter', () => {
+  test('only accepts "only" and "exclude"', () => {
+    assert.equal(parseJobFilters({ urgent: 'only' }).urgent, 'only')
+    assert.equal(parseJobFilters({ urgent: 'exclude' }).urgent, 'exclude')
+    assert.equal(parseJobFilters({ urgent: '$ne' }).urgent, null)
+    assert.equal(parseJobFilters({}).urgent, null)
+  })
+
+  test('only → instantHiring jobs, exclude → everything else, unset → no constraint', () => {
+    assert.equal(buildJobQuery(parseJobFilters({ urgent: 'only' })).instantHiring, true)
+    assert.deepEqual(buildJobQuery(parseJobFilters({ urgent: 'exclude' })).instantHiring, { $ne: true })
+    assert.equal('instantHiring' in buildJobQuery(parseJobFilters({})), false)
+  })
+})
