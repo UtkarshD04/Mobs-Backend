@@ -8,6 +8,12 @@ function toMsg91Mobile(phone) {
   return `91${phone.trim()}`
 }
 
+// Fixed test login for the employer app (store review / QA): this one number
+// skips MSG91 entirely and accepts a fixed code. Nothing else is affected.
+const TEST_PHONE = '9000000001'
+const TEST_OTP = '123456'
+const isTestPhone = (phone) => phone.trim() === TEST_PHONE
+
 // Asks MSG91 to generate and text an OTP to the given 10-digit Indian mobile
 // number. MSG91 owns OTP generation/expiry/retry itself — we never see the
 // code, only pass/fail on send and later verify.
@@ -18,6 +24,7 @@ function toMsg91Mobile(phone) {
 // the body explicitly or a rejected/unregistered template silently "sends"
 // nothing while the caller still sees a success response.
 export async function sendOtp(phone) {
+  if (isTestPhone(phone)) return
   const { data } = await axios.post(
     BASE_URL,
     { template_id: env.msg91.templateId, mobile: toMsg91Mobile(phone) },
@@ -56,6 +63,7 @@ export async function sendSmsFlow(phone, variables) {
 // Any other failure (bad auth key, network) throws so the caller 500s
 // instead of silently treating it as a wrong OTP.
 export async function verifyOtp(phone, otp) {
+  if (isTestPhone(phone)) return otp.trim() === TEST_OTP
   try {
     const { data } = await axios.post(
       `${BASE_URL}/verify`,

@@ -7,7 +7,7 @@ import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
-import { verifyWidgetAccessToken } from '../utils/msg91.js'
+import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
 import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
@@ -210,6 +210,57 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
   }
 
   res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
+// Direct-API OTP for the employer mobile app (the website uses the MSG91 widget
+// above). Same phoneToken shape, so signup/phone-login treat both identically.
+export const sendPhoneOtp = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+  const { phone } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
+    return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
+  }
+  await sendOtp(phone.trim())
+  res.json({ message: 'OTP sent' })
+})
+
+export const verifyPhoneOtp = asyncHandler(async (req, res) => {
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
+  const { phone, otp } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof otp !== 'string' || !otp.trim()) {
+    return res.status(400).json({ message: 'Phone and OTP are required' })
+  }
+  const ok = await verifyOtp(phone.trim(), otp.trim())
+  if (!ok) return res.status(400).json({ message: 'Incorrect or expired OTP' })
+  res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+})
+
+// Passwordless sign-in: a valid phoneToken signs in an existing account whose
+// number was OTP-verified at signup. 404 just means "not registered yet", which
+// the app reads as "continue to the registration details".
+export const phoneLogin = asyncHandler(async (req, res) => {
+  const { phone, phoneToken } = req.body ?? {}
+  if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
+    return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
+  }
+  if (typeof phoneToken !== 'string' || !checkPhoneToken(phoneToken, phone.trim())) {
+    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
+  }
+
+  const user = await User.findOne({ phone: phone.trim(), phoneVerified: true }).populate('company')
+  if (!user || !user.company) return res.status(404).json({ message: 'No account found for this mobile number' })
+
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
+  }
+  if (user.company.blocked) {
+    return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
+  }
+
+  user.lastActiveAt = new Date()
+  await user.save()
+
+  res.json(authResponse(user, user.company))
 })
 
 // POST /api/employer/auth/handoff — called with the token this same login

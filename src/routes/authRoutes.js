@@ -11,6 +11,9 @@ import {
   forgotPassword,
   resetPassword,
   verifyPhoneWidget,
+  sendPhoneOtp,
+  verifyPhoneOtp,
+  phoneLogin,
   createHandoff,
   exchangeHandoff,
 } from '../controllers/authController.js'
@@ -18,6 +21,9 @@ import {
 const router = Router()
 
 router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
+router.post('/send-otp', otpLimiter, sendPhoneOtp)
+router.post('/verify-otp', otpLimiter, verifyPhoneOtp)
+router.post('/phone-login', authLimiter, phoneLogin)
 router.post('/login', authLimiter, login)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)
