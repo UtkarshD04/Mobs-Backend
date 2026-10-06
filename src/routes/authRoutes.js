@@ -8,6 +8,7 @@ import {
   googleSignup,
   getMe,
   updateMe,
+  deleteMe,
   forgotPassword,
   resetPassword,
   verifyPhoneWidget,
@@ -34,5 +35,6 @@ router.post('/handoff', authLimiter, requireAuth, createHandoff)
 router.post('/exchange', authLimiter, exchangeHandoff)
 router.get('/me', requireAuth, getMe)
 router.put('/me', requireAuth, updateMe)
+router.delete('/me', authLimiter, requireAuth, deleteMe)
 
 export default router

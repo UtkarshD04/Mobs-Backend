@@ -15,6 +15,7 @@ import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
 import { ONE_YEAR_MS, grantPlanCvCredits } from '../utils/activateEmployerSubscription.js'
 import { logger } from '../config/logger.js'
 import { logActivity } from '../utils/activityLog.js'
+import { deleteEmployerAccount, LastAdminError } from '../utils/employerAccountDeletion.js'
 import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
@@ -464,6 +465,18 @@ export const getMe = asyncHandler(async (req, res) => {
     role: req.user.role,
     initials: initialsOf(req.user.name),
   })
+})
+
+// DELETE /api/employer/auth/me — { confirm: 'DELETE' }. In-app account deletion (see utils/employerAccountDeletion.js).
+export const deleteMe = asyncHandler(async (req, res) => {
+  if (req.body?.confirm !== 'DELETE') return res.status(400).json({ message: 'Type DELETE to confirm account deletion' })
+  try {
+    await deleteEmployerAccount(req.user)
+  } catch (err) {
+    if (err instanceof LastAdminError) return res.status(409).json({ message: err.message })
+    throw err
+  }
+  res.json({ message: 'Your account has been deleted.' })
 })
 
 export const updateMe = asyncHandler(async (req, res) => {
