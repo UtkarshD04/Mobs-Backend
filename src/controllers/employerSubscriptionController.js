@@ -26,7 +26,7 @@ async function priceEmployerPlanWithCoupon(pricing, couponCode) {
 }
 
 // GET /api/employer/subscription — current plan state plus every purchasable
-// tier's pricing, so the frontend never has to hardcode ₹999/₹1499/₹1999 or
+// tier's pricing, so the frontend never has to hardcode ₹999/₹1499/₹2199 or
 // the GST math.
 export const getSubscription = asyncHandler(async (req, res) => {
   const { subscription, isActive } = await getEffectiveSubscription(req.company._id)
@@ -65,7 +65,11 @@ function buildMockOrder(amountPaise, receipt) {
 // company: null and only gets attached once guestSubscribeSignup (see
 // authController.js) verifies the payment and creates the account.
 export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
-  const pricing = getEmployerPlanPricing()
+  const { planCode } = req.body ?? {}
+  if (planCode !== undefined && !getEmployerPlans().some((p) => p.planCode === planCode)) {
+    return res.status(400).json({ message: 'Unknown plan' })
+  }
+  const pricing = getEmployerPlanPricing(planCode)
   const receipt = `empsub_guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   let order = buildMockOrder(pricing.totalAmountPaise, receipt)
@@ -89,6 +93,7 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
     status: 'created',
     receipt,
     isMock: order.mock,
+    planCode: pricing.planCode,
   })
 
   res.status(201).json({

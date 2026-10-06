@@ -16,7 +16,7 @@ import billingRoutes from './billingRoutes.js'
 import employerSubscriptionRoutes from './employerSubscriptionRoutes.js'
 import { createGuestSubscriptionOrder } from '../controllers/employerSubscriptionController.js'
 import { guestSubscribeSignup } from '../controllers/authController.js'
-import { paymentLimiter } from '../middleware/rateLimit.js'
+import { authLimiter, paymentLimiter } from '../middleware/rateLimit.js'
 import employerPaymentsRoutes from './employerPaymentsRoutes.js'
 import employerCreditRoutes from './employerCreditRoutes.js'
 import employerUnlocksRoutes from './employerUnlocksRoutes.js'
@@ -28,6 +28,8 @@ import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
 import allyRoutes from './allyRoutes.js'
 import associateRoutes from './associateRoutes.js'
+import { submitPlanEnquiry } from '../controllers/planEnquiryController.js'
+import staffPlanEnquiryRoutes from './staffPlanEnquiryRoutes.js'
 import employeeAuthRoutes from './employeeAuthRoutes.js'
 import employeeProfileRoutes from './employeeProfileRoutes.js'
 import employeeResumeRoutes from './employeeResumeRoutes.js'
@@ -89,6 +91,8 @@ employerRoutes.use('/billing', billingRoutes)
 // work for a visitor who has no account/token yet.
 employerRoutes.post('/subscription/guest-order', paymentLimiter, createGuestSubscriptionOrder)
 employerRoutes.post('/subscription/guest-verify', paymentLimiter, guestSubscribeSignup)
+// Public "Customize plan" enquiry from the pricing page / employer app — lands in the Operations portal.
+employerRoutes.post('/plan-enquiries', authLimiter, submitPlanEnquiry)
 employerRoutes.use('/subscription', employerSubscriptionRoutes)
 employerRoutes.use('/payments', employerPaymentsRoutes)
 employerRoutes.use('/credits', employerCreditRoutes)
@@ -137,6 +141,7 @@ staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 staffRoutes.use('/ally', staffAllyRoutes)
 staffRoutes.use('/associates', staffAssociateRoutes)
+staffRoutes.use('/plan-enquiries', staffPlanEnquiryRoutes)
 staffRoutes.use('/premium-services', staffPremiumServiceRoutes)
 staffRoutes.use('/doot', staffAllyRoutes)
 staffRoutes.use('/campus-mantri', staffAllyRoutes)

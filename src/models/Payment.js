@@ -11,6 +11,8 @@ const paymentSchema = new Schema(
     // Set only for purpose: 'employer_subscription' — the EmployerSubscription
     // period this payment is activating/renewing.
     employerSubscription: { type: Schema.Types.ObjectId, ref: 'EmployerSubscription', default: null, index: true },
+    // Guest checkout only: the tier chosen on the pricing page, so guest-verify activates the same one that was paid for.
+    planCode: { type: String, default: null },
     // Set only for purpose: 'employer_cv_credit' — which pack was bought and
     // how many credits it grants, fixed at order-creation time so a later
     // repricing of the pack never changes what an already-created order pays out.

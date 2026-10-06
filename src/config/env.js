@@ -137,10 +137,10 @@ export const env = {
         benefits: ['Enhanced candidate CVs'],
       },
       {
-        planCode: process.env.EMPLOYER_PLAN_PRO_CODE ?? 'EMPLOYER_ANNUAL_1999',
+        planCode: process.env.EMPLOYER_PLAN_PRO_CODE ?? 'EMPLOYER_ANNUAL_2199',
         planName: process.env.EMPLOYER_PLAN_PRO_NAME ?? 'MZOBS Employer Annual Pro',
-        // Default 199900 paise = ₹1999.
-        amountPaise: Number(process.env.EMPLOYER_PLAN_PRO_AMOUNT_PAISE ?? 199900),
+        // Default 219900 paise = ₹2199.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_PRO_AMOUNT_PAISE ?? 219900),
         cvCredits: Number(process.env.EMPLOYER_PLAN_PRO_CV_CREDITS ?? 40),
         benefits: ['Enhanced candidate CVs'],
       },

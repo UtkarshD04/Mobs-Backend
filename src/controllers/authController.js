@@ -374,7 +374,7 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   })
 
-  const pricing = getEmployerPlanPricing()
+  const pricing = getEmployerPlanPricing(payment.planCode)
   const startsAt = new Date()
   const expiresAt = new Date(startsAt.getTime() + ONE_YEAR_MS)
   const subscription = await EmployerSubscription.create({
