@@ -25,7 +25,7 @@ const jobSchema = new Schema(
     track: { type: String, enum: ['analytics', 'design', 'sales', 'marketing', 'hr', 'support', 'tech', 'ops', ''], default: '' },
     description: { type: String, required: true },
     benefits: { type: [String], default: [] },
-    deadline: { type: String, required: true },
+    deadline: { type: String, default: '' }, // optional: a job with no deadline never expires
 
     status: {
       type: String,
