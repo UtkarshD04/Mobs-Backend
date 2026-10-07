@@ -5,7 +5,7 @@
 // page, the apply gate and the Operations queue can never drift apart.
 
 // One-time, lifetime fee (tax-inclusive — see the GST note in env.js).
-export const PREMIUM_FEE = 99
+export const PREMIUM_FEE = 499
 
 // Lifetime cap on applications for Basic accounts. Withdrawn applications
 // still count (see employeeApplicationController.js).

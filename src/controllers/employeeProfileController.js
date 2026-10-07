@@ -95,7 +95,7 @@ export const deleteAccount = asyncHandler(async (req, res) => {
   res.json({ id: id.toString() })
 })
 
-// The mandatory "complete your profile" step that follows the ₹99 payment. Saves
+// The mandatory "complete your profile" step that follows the ₹499 payment. Saves
 // whatever was sent, then checks the details a recruiter needs before the profile
 // counts as complete. Only paid accounts can call it, so an unpaid signup is never
 // asked for (or pretends to have finished) the full profile.

@@ -194,7 +194,7 @@ export const signup = asyncHandler(async (req, res) => {
   const existingPhone = await Employee.findOne({ phone: phone.trim() })
   if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
 
-  // If the marketing site's "pay first" flow already collected the ₹99 fee,
+  // If the marketing site's "pay first" flow already collected the ₹499 fee,
   // it hands back the order id here — claim that unlinked payment onto the
   // new account so it starts out already subscribed. A missing/invalid/
   // already-claimed id just means the account starts unpaid, same as before
