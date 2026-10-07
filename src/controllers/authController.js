@@ -28,7 +28,7 @@ function issueToken(user, company) {
   return jwt.sign(
     { sub: user._id.toString(), companyId: company._id.toString(), role: user.role, type: 'employer' },
     env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn }
+    { expiresIn: env.employerJwtExpiresIn }
   )
 }
 
