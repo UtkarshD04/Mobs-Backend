@@ -23,11 +23,14 @@ const isTestPhone = (phone) => phone.trim() === TEST_PHONE
 // rather than a non-2xx status, so axios alone won't throw for it — check
 // the body explicitly or a rejected/unregistered template silently "sends"
 // nothing while the caller still sees a success response.
+//
+// otp_length is pinned to 6: left out, MSG91 generates a 4-digit code, but
+// both apps' code fields take exactly 6 digits.
 export async function sendOtp(phone) {
   if (isTestPhone(phone)) return
   const { data } = await axios.post(
     BASE_URL,
-    { template_id: env.msg91.templateId, mobile: toMsg91Mobile(phone) },
+    { template_id: env.msg91.templateId, mobile: toMsg91Mobile(phone), otp_length: 6 },
     { headers: { authkey: env.msg91.authKey, 'Content-Type': 'application/json' } }
   )
   if (data?.type !== 'success') {
