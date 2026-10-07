@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth.js'
-import { authLimiter, otpLimiter } from '../middleware/rateLimit.js'
+import { authLimiter } from '../middleware/rateLimit.js'
 import {
   login,
   signup,
@@ -21,9 +21,9 @@ import {
 
 const router = Router()
 
-router.post('/verify-phone-widget', otpLimiter, verifyPhoneWidget)
-router.post('/send-otp', otpLimiter, sendPhoneOtp)
-router.post('/verify-otp', otpLimiter, verifyPhoneOtp)
+router.post('/verify-phone-widget', verifyPhoneWidget)
+router.post('/send-otp', sendPhoneOtp)
+router.post('/verify-otp', verifyPhoneOtp)
 router.post('/phone-login', authLimiter, phoneLogin)
 router.post('/login', authLimiter, login)
 router.post('/signup', authLimiter, signup)
