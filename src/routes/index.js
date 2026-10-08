@@ -28,6 +28,7 @@ import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
 import allyRoutes from './allyRoutes.js'
 import associateRoutes from './associateRoutes.js'
+import campusRequestRoutes from './campusRequestRoutes.js'
 import { submitPlanEnquiry } from '../controllers/planEnquiryController.js'
 import staffPlanEnquiryRoutes from './staffPlanEnquiryRoutes.js'
 import employeeAuthRoutes from './employeeAuthRoutes.js'
@@ -66,6 +67,7 @@ import staffNotificationRoutes from './staffNotificationRoutes.js'
 import staffSupportRoutes from './staffSupportRoutes.js'
 import staffAllyRoutes from './staffAllyRoutes.js'
 import staffAssociateRoutes from './staffAssociateRoutes.js'
+import staffCampusRequestRoutes from './staffCampusRequestRoutes.js'
 import staffPremiumServiceRoutes from './staffPremiumServiceRoutes.js'
 import employeePremiumServiceRoutes from './employeePremiumServiceRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
@@ -141,6 +143,7 @@ staffRoutes.use('/notifications', staffNotificationRoutes)
 staffRoutes.use('/support', staffSupportRoutes)
 staffRoutes.use('/ally', staffAllyRoutes)
 staffRoutes.use('/associates', staffAssociateRoutes)
+staffRoutes.use('/campus-requests', staffCampusRequestRoutes)
 staffRoutes.use('/plan-enquiries', staffPlanEnquiryRoutes)
 staffRoutes.use('/premium-services', staffPremiumServiceRoutes)
 staffRoutes.use('/doot', staffAllyRoutes)
@@ -157,6 +160,7 @@ router.use('/staff', staffRoutes)
 router.use('/contact', contactRoutes)
 router.use('/ally', allyRoutes)
 router.use('/associates', associateRoutes)
+router.use('/campus-requests', campusRequestRoutes)
 router.use('/doot', allyRoutes)
 router.use('/campus-mantri', allyRoutes)
 router.use('/push', publicPushRoutes)
