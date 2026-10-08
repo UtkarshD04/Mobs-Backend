@@ -49,7 +49,11 @@ function toLatestJobSummary(job) {
     experience: job.experienceMin != null && job.experienceMax != null ? `${job.experienceMin}–${job.experienceMax} yrs` : '',
     experienceMin: job.experienceMin,
     experienceMax: job.experienceMax,
-    salary: job.salaryMin && job.salaryMax ? `${formatINR(job.salaryMin)} – ${formatINR(job.salaryMax)}` : 'Depends on interview & experience',
+    salary: !(job.salaryMin && job.salaryMax)
+      ? 'Depends on interview & experience'
+      : job.salaryMin === job.salaryMax
+        ? formatINR(job.salaryMin)
+        : `${formatINR(job.salaryMin)} – ${formatINR(job.salaryMax)}`,
     salaryMin: job.salaryMin,
     salaryMax: job.salaryMax,
     workMode: job.workMode,
@@ -116,7 +120,7 @@ export const listLatestJobs = asyncHandler(async (req, res) => {
   const sort = buildSortStage(filters)
 
   const [jobs, total] = await Promise.all([
-    Job.find(query).populate('company', 'name logo').sort(sort).skip(skip).limit(limit),
+    Job.find(query).populate('company', 'name logo verificationStatus').sort(sort).skip(skip).limit(limit),
     Job.countDocuments(query),
   ])
 
@@ -137,7 +141,7 @@ export const getLatestJob = asyncHandler(async (req, res) => {
   if (!OBJECT_ID_RE.test(req.params.id)) return res.status(404).json({ message: 'Job not found' })
   const job = await Job.findOne({ _id: req.params.id, ...publicJobFilter() }).populate(
     'company',
-    'name logo'
+    'name logo verificationStatus'
   )
   if (!job) return res.status(404).json({ message: 'Job not found' })
   res.json(toLatestJobSummary(job))
@@ -242,16 +246,20 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
 // buildJobQuery a click on those tiles would filter with (experience=0-1 /
 // location=Remote), so the number shown always matches what browsing there
 // actually returns. `finance` has no Job.track value to group by (see the
-// enum on Job.js) — Finance postings only ever land in the free-text
-// `department` field, so it's counted by matching that instead, same as
-// every other number here: a real query result, never a hardcoded figure.
+// enum on Job.js), so the Finance tile runs a keyword search (q=Finance,
+// Accounting); it's counted through that same q query, company-name matches
+// included, so the tile's number equals what the click returns.
+const FINANCE_TILE_Q = 'Finance,Accounting'
+
 export const getPublicCategoryCounts = asyncHandler(async (req, res) => {
   const baseMatch = publicJobFilter()
+  const financeFilters = parseJobFilters({ q: FINANCE_TILE_Q })
+  const financeCompanyIds = await resolveMatchingCompanyIds(financeFilters.q)
   const [trackRows, freshers, remote, finance] = await Promise.all([
     Job.aggregate([{ $match: baseMatch }, { $group: { _id: '$track', count: { $sum: 1 } } }]),
     Job.countDocuments(buildJobQuery(parseJobFilters({ experience: '0-1' }))),
     Job.countDocuments(buildJobQuery(parseJobFilters({ location: 'Remote' }))),
-    Job.countDocuments({ ...baseMatch, department: /finance|accounting/i }),
+    Job.countDocuments(buildJobQuery(financeFilters, { matchingCompanyIdsForQ: financeCompanyIds })),
   ])
 
   const tracks = {}

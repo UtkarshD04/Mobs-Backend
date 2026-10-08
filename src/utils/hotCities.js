@@ -51,19 +51,35 @@ function jobMatchesFilter(job, filter) {
   return false
 }
 
-// Top N department values by frequency among the given jobs — the real,
-// live "top categories" chips, never a fixed/guessed label.
+// Labels for Job.track — the same names the site's department filter shows
+// (Landing-Frontend lib/jobFilters.js DEPARTMENT_OPTIONS).
+const TRACK_LABELS = {
+  tech: 'Engineering',
+  sales: 'Sales & BD',
+  marketing: 'Marketing',
+  analytics: 'Analytics & Data',
+  design: 'Design & Creative',
+  hr: 'HR & Recruitment',
+  ops: 'Operations',
+  support: 'Customer Success',
+}
+
+// Top N categories by frequency among the given jobs — the real, live "top
+// categories" chips, never a fixed/guessed label. Ranked by Job.track (the
+// field the category counts and filters use, so the chips agree with them);
+// a job with no track falls back to its free-text department. Ties break
+// alphabetically so the order is stable.
 function topDepartments(jobs, limit = 3) {
   const counts = new Map()
   for (const job of jobs) {
-    const dept = (job.department ?? '').trim()
-    if (!dept) continue
-    counts.set(dept, (counts.get(dept) ?? 0) + 1)
+    const label = TRACK_LABELS[job.track] ?? (job.department ?? '').trim()
+    if (!label) continue
+    counts.set(label, (counts.get(label) ?? 0) + 1)
   }
   return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
-    .map(([dept]) => dept)
+    .map(([label]) => label)
 }
 
 function bucketStats(jobs, now = Date.now()) {

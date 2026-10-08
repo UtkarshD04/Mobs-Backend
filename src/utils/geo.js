@@ -115,7 +115,7 @@ function distanceForLocation(location, orderedCities) {
 // hardCap would under-report `total` and silently drop the excess from
 // sorting, which is an acceptable tradeoff here but not one to raise blindly.
 export async function nearbyJobsPage(Job, query, { lat, lng, page, limit, hardCap = 500 }) {
-  const all = await Job.find(query).populate('company', 'name logo').limit(hardCap)
+  const all = await Job.find(query).populate('company', 'name logo verificationStatus').limit(hardCap)
   const sorted = sortJobsByDistance(all, lat, lng)
   const total = sorted.length
   const start = (page - 1) * limit

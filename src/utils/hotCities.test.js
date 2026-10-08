@@ -62,18 +62,30 @@ describe('aggregateHotCities', () => {
     assert.equal(stats.salaryMax, 1800000)
   })
 
-  test('top categories are real department values ranked by frequency, capped at 3', () => {
+  test('jobs with no track fall back to department text, ranked by frequency, capped at 3', () => {
     const jobs = [
-      job({ department: 'Engineering' }),
-      job({ department: 'Engineering' }),
-      job({ department: 'Product' }),
-      job({ department: 'Design' }),
-      job({ department: 'Sales' }),
+      job({ track: '', department: 'Engineering' }),
+      job({ track: '', department: 'Engineering' }),
+      job({ track: '', department: 'Product' }),
+      job({ track: '', department: 'Design' }),
+      job({ track: '', department: 'Sales' }),
     ]
     const result = aggregateHotCities(jobs)
     const top = result.find((c) => c.city === 'Bengaluru').byFilter.all.topCategories
     assert.equal(top.length, 3)
     assert.equal(top[0], 'Engineering')
+  })
+
+  test('top categories rank by track (same field as the filters) before free-text department', () => {
+    const jobs = [
+      job({ track: 'hr', department: 'Human Resources' }),
+      job({ track: 'hr', department: 'HR' }),
+      job({ track: 'design', department: 'Design' }),
+      job({ track: 'tech', department: 'Engineering' }),
+      job({ track: '', department: 'Legal' }),
+    ]
+    const top = aggregateHotCities(jobs).find((c) => c.city === 'Bengaluru').byFilter.all.topCategories
+    assert.deepEqual(top, ['HR & Recruitment', 'Design & Creative', 'Engineering'])
   })
 
   test('verified-employer count is distinct companies actually marked verified, not a raw job count', () => {
