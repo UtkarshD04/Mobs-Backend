@@ -122,6 +122,7 @@ const employeeSchema = new Schema(
     state: { type: String, default: '' },
     pincode: { type: String, default: '' },
     relocationOk: { type: Boolean, default: false },
+    college: { type: String, default: '', trim: true, maxlength: 200 },
     currentCompany: { type: String, default: '' },
     designation: { type: String, default: '' },
     experienceYears: { type: Number, default: 0 },

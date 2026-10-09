@@ -47,6 +47,7 @@ export function redactEmployee(employee, { unlocked, candidateId, revealed = nul
     expectedSalary: employee.expectedSalaryMax ? `₹${employee.expectedSalaryMax}` : '',
     noticePeriod: employee.noticePeriod,
     skills: employee.skills,
+    college: employee.college ?? '',
     education: employee.education,
     projects: employee.projects,
     workHistory: employee.workHistory,
