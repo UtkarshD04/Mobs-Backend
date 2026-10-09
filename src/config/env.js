@@ -85,6 +85,19 @@ export const env = {
     apiKey: process.env.GROQ_API_KEY ?? '',
     model: process.env.GROQ_MODEL ?? 'openai/gpt-oss-20b',
   },
+  // Employer GSTIN verification through a licensed GST API vendor (see
+  // utils/gstProviders.js). Server-side only — never sent to any client.
+  // Blank provider/credentials = verification answers 503 GST_NOT_CONFIGURED
+  // and no company is ever marked verified (same no-op pattern as AWS below).
+  // GSTINAPI_API_KEY / GSTINAPI_BASE_URL (gstinapi.in) are accepted as-is and
+  // select that adapter when no GST_VERIFICATION_PROVIDER is set.
+  gstVerification: {
+    provider: process.env.GST_VERIFICATION_PROVIDER || (process.env.GSTINAPI_API_KEY ? 'gstinapi' : ''),
+    apiKey: process.env.GST_VERIFICATION_API_KEY || process.env.GSTINAPI_API_KEY || '',
+    apiSecret: process.env.GST_VERIFICATION_API_SECRET ?? '',
+    baseUrl: process.env.GST_VERIFICATION_BASE_URL || process.env.GSTINAPI_BASE_URL || '',
+    timeoutMs: Number(process.env.GST_VERIFICATION_TIMEOUT_MS ?? 10000) || 10000,
+  },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download
   // endpoints fail cleanly with a 503 instead of crashing (same no-op

@@ -4,6 +4,9 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import User from '../models/User.js'
 
 export const requireAuth = asyncHandler(async (req, res, next) => {
+  // Already authenticated earlier in this request (the employer access gate
+  // in requireGstVerified.js runs it ahead of each router's own requireAuth).
+  if (req.user && req.company) return next()
   const header = req.headers.authorization || ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : null
   if (!token) return res.status(401).json({ message: 'Not authenticated' })

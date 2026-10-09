@@ -5,6 +5,7 @@ import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Company from '../models/Company.js'
 import User from '../models/User.js'
+import GstVerificationAttempt from '../models/GstVerificationAttempt.js'
 
 export const listCompanies = asyncHandler(async (req, res) => {
   const { status, search } = req.query
@@ -97,6 +98,41 @@ export const rejectCompany = asyncHandler(async (req, res) => {
 
   await company.save()
   await logStaffActivity(`${company.name} verification rejected`, 'gold')
+
+  res.json(company)
+})
+
+// Resolves an employer GSTIN check the automatic rules sent to UNDER_REVIEW
+// (see utils/gstVerification.js) — { decision: 'approve' | 'reject', note }.
+// Only an UNDER_REVIEW record can be resolved, and the update is guarded on
+// that status so two staff members can't decide it twice.
+export const reviewCompanyGst = asyncHandler(async (req, res) => {
+  const { decision, note } = req.body ?? {}
+  if (!['approve', 'reject'].includes(decision)) return res.status(400).json({ message: "decision must be 'approve' or 'reject'" })
+
+  const approve = decision === 'approve'
+  const current = await Company.findById(req.params.id).select('name gstVerification')
+  if (!current) return res.status(404).json({ message: 'Company not found' })
+  const set = {
+    'gstVerification.status': approve ? 'VERIFIED' : 'FAILED',
+    'gstVerification.reason': approve ? '' : 'REJECTED_BY_REVIEW',
+    'gstVerification.verifiedAt': approve ? new Date() : null,
+    'gstVerification.reviewedBy': req.staff.name,
+    'gstVerification.reviewNote': typeof note === 'string' ? note.trim().slice(0, 500) : '',
+  }
+  if (approve) set.gstin = current.gstVerification?.gstin ?? ''
+
+  const company = await Company.findOneAndUpdate({ _id: current._id, 'gstVerification.status': 'UNDER_REVIEW' }, { $set: set }, { new: true })
+  if (!company) return res.status(409).json({ message: 'This GSTIN is not awaiting review' })
+
+  await GstVerificationAttempt.create({
+    company: company._id,
+    staffName: req.staff.name,
+    gstin: company.gstVerification.gstin,
+    outcome: company.gstVerification.status,
+    reason: approve ? 'APPROVED_BY_REVIEW' : 'REJECTED_BY_REVIEW',
+  })
+  await logStaffActivity(`${company.name} GSTIN ${approve ? 'approved' : 'rejected'} on review`, approve ? 'green' : 'gold')
 
   res.json(company)
 })

@@ -83,6 +83,14 @@ describe('experienceOverlapQuery', () => {
     assert.ok(!matches)
   })
 
+  test('the fresher (0-1) selection only matches jobs with zero minimum experience', () => {
+    const query = experienceOverlapQuery(['0-1'])
+    const matchesJob = (job) => query.$or.some((cond) => job.experienceMax >= cond.experienceMax.$gte && (!cond.experienceMin || job.experienceMin <= cond.experienceMin.$lte))
+    assert.ok(matchesJob({ experienceMin: 0, experienceMax: 3 }))
+    assert.ok(!matchesJob({ experienceMin: 1, experienceMax: 3 }))
+    assert.ok(!matchesJob({ experienceMin: 3, experienceMax: 8 }))
+  })
+
   test('10+ has no upper bound', () => {
     const query = experienceOverlapQuery(['10+'])
     assert.deepEqual(query.$or, [{ experienceMax: { $gte: 10 } }])

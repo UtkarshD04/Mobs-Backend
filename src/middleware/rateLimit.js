@@ -93,6 +93,19 @@ export const outreachLimiter = rateLimit({
   store: makeStore('rl:outreach:'),
 })
 
+// GSTIN verification — every attempt is a paid provider lookup. Keyed by
+// company (the route sits behind requireAuth), so one company can't spend
+// another's allowance and a company can't dodge it by switching networks.
+export const gstVerifyLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  keyGenerator: (req) => `company:${req.company._id}`,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 'RATE_LIMITED', message: 'Too many GSTIN verification attempts. Please try again in an hour.' },
+  store: makeStore('rl:gst-verify:'),
+})
+
 // Each AI call costs money; this stops a script from running up the bill.
 export const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

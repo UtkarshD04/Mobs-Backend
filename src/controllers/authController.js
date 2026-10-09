@@ -17,6 +17,8 @@ import { logger } from '../config/logger.js'
 import { logActivity } from '../utils/activityLog.js'
 import { deleteEmployerAccount, LastAdminError } from '../utils/employerAccountDeletion.js'
 import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
+import { parseSignupGst } from '../utils/gstVerification.js'
+import { checkSignupGst, logGstAttempt } from './companyController.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
 import EmployerSubscription from '../models/EmployerSubscription.js'
@@ -47,6 +49,9 @@ function authResponse(user, company) {
       id: company._id.toString(),
       name: company.name,
       logo: company.logo,
+      // Mandatory GST verification state — clients show the verification
+      // screen instead of the app until this is VERIFIED.
+      gstVerification: { status: company.gstVerification?.status ?? 'NOT_SUBMITTED', reason: company.gstVerification?.reason ?? '' },
     },
   }
 }
@@ -79,6 +84,29 @@ export const login = asyncHandler(async (req, res) => {
   res.json(authResponse(user, user.company))
 })
 
+// Mandatory GST verification at signup, shared by email and Google signup.
+// Runs the paid provider lookup only after every cheap check has passed.
+// Answers the request itself (and returns null) when the signup must be
+// refused — nothing is created then. Otherwise returns the gstVerification
+// record to create the company with: VERIFIED activates the account; any
+// other status leaves it pending (see middleware/requireGstVerified.js).
+async function signupGstOrRefuse(res, gst, companyName) {
+  const result = await checkSignupGst({ ...gst, companyName })
+  if (result.reject) {
+    if (result.audit) await logGstAttempt({ company: null, ...result.audit })
+    res.status(result.reject.httpStatus).json({ code: result.reject.code, message: result.reject.message })
+    return null
+  }
+  return result
+}
+
+async function createCompanyWithGst(fields, gstResult) {
+  const record = gstResult.record
+  return Company.create({ ...fields, gstVerification: record, gstin: record.status === 'VERIFIED' ? record.gstin : '' })
+}
+
+const signupGstSummary = (gstResult) => ({ code: gstResult.code, message: gstResult.message, status: gstResult.record.status })
+
 export const signup = asyncHandler(async (req, res) => {
   const { companyName, name, email, phone, password, industry, size, website, hq, phoneToken } = req.body ?? {}
   const required = { companyName, name, email, phone, password, industry, size }
@@ -88,6 +116,8 @@ export const signup = asyncHandler(async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
   }
+  const { gst, error: gstError } = parseSignupGst(req.body)
+  if (gstError) return res.status(400).json(gstError)
 
   // Phone OTP verification is mandatory once MSG91 is actually configured on
   // this deployment — on one that isn't, requiring it would block signup
@@ -103,13 +133,19 @@ export const signup = asyncHandler(async (req, res) => {
   const existing = await User.findOne({ email: normalizedEmail })
   if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
 
-  const company = await Company.create({
-    name: companyName.trim(),
-    industry: industry.trim(),
-    size,
-    website: typeof website === 'string' ? website.trim() : '',
-    hq: typeof hq === 'string' ? hq.trim() : '',
-  })
+  const gstResult = await signupGstOrRefuse(res, gst, companyName.trim())
+  if (!gstResult) return
+
+  const company = await createCompanyWithGst(
+    {
+      name: companyName.trim(),
+      industry: industry.trim(),
+      size,
+      website: typeof website === 'string' ? website.trim() : '',
+      hq: typeof hq === 'string' ? hq.trim() : '',
+    },
+    gstResult
+  )
 
   const passwordHash = await bcrypt.hash(password, 10)
   const user = await User.create({
@@ -124,7 +160,8 @@ export const signup = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   })
 
-  res.status(201).json(authResponse(user, company))
+  await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
+  res.status(201).json({ ...authResponse(user, company), gstVerification: signupGstSummary(gstResult) })
 })
 
 // Signs in an existing employer account via a Google ID token. Deliberately
@@ -160,6 +197,8 @@ export const googleSignup = asyncHandler(async (req, res) => {
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All company fields are required to register your company' })
   }
+  const { gst, error: gstError } = parseSignupGst(req.body)
+  if (gstError) return res.status(400).json(gstError)
 
   const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
   if (env.msg91.authKey && !phoneVerified) {
@@ -171,13 +210,19 @@ export const googleSignup = asyncHandler(async (req, res) => {
   const existing = await User.findOne({ email })
   if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
 
-  const company = await Company.create({
-    name: companyName.trim(),
-    industry: industry.trim(),
-    size,
-    website: typeof website === 'string' ? website.trim() : '',
-    hq: typeof hq === 'string' ? hq.trim() : '',
-  })
+  const gstResult = await signupGstOrRefuse(res, gst, companyName.trim())
+  if (!gstResult) return
+
+  const company = await createCompanyWithGst(
+    {
+      name: companyName.trim(),
+      industry: industry.trim(),
+      size,
+      website: typeof website === 'string' ? website.trim() : '',
+      hq: typeof hq === 'string' ? hq.trim() : '',
+    },
+    gstResult
+  )
 
   const user = await User.create({
     company: company._id,
@@ -191,7 +236,8 @@ export const googleSignup = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   })
 
-  res.status(201).json(authResponse(user, company))
+  await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
+  res.status(201).json({ ...authResponse(user, company), gstVerification: signupGstSummary(gstResult) })
 })
 
 // Companion to the employee side's verifyPhoneWidget — same MSG91 widget

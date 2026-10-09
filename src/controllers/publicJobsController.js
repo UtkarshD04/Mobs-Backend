@@ -26,6 +26,17 @@ function formatINR(n) {
   return '₹' + n
 }
 
+// salaryMin/salaryMax are stored as annual amounts (see SALARY_RANGES in
+// jobQueryFilters.js), so an internship's monthly stipend is stored ×12 —
+// show it back per month instead of as a yearly figure.
+function formatSalary(job) {
+  if (!(job.salaryMin && job.salaryMax)) return 'Depends on interview & experience'
+  const perMonth = job.employmentType === 'Internship'
+  const fmt = (n) => formatINR(perMonth ? Math.round(n / 12) : n)
+  const amount = job.salaryMin === job.salaryMax ? fmt(job.salaryMin) : `${fmt(job.salaryMin)} – ${fmt(job.salaryMax)}`
+  return perMonth ? `${amount}/month` : amount
+}
+
 // Teaser shape for the marketing site's "Latest jobs" home page section —
 // pre-formatted strings so that unauthenticated section has no reason to
 // carry any raw fee/invoice/sourcing data, just what's safe to show anyone.
@@ -49,11 +60,7 @@ function toLatestJobSummary(job) {
     experience: job.experienceMin != null && job.experienceMax != null ? `${job.experienceMin}–${job.experienceMax} yrs` : '',
     experienceMin: job.experienceMin,
     experienceMax: job.experienceMax,
-    salary: !(job.salaryMin && job.salaryMax)
-      ? 'Depends on interview & experience'
-      : job.salaryMin === job.salaryMax
-        ? formatINR(job.salaryMin)
-        : `${formatINR(job.salaryMin)} – ${formatINR(job.salaryMax)}`,
+    salary: formatSalary(job),
     salaryMin: job.salaryMin,
     salaryMax: job.salaryMax,
     workMode: job.workMode,

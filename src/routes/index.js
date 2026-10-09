@@ -23,6 +23,7 @@ import employerUnlocksRoutes from './employerUnlocksRoutes.js'
 import { listCreditPlans } from '../controllers/employerCvCreditController.js'
 import { env } from '../config/env.js'
 import { requireAuth } from '../middleware/auth.js'
+import { employerAccessGate } from '../middleware/requireGstVerified.js'
 import dashboardRoutes from './dashboardRoutes.js'
 import supportRoutes from './supportRoutes.js'
 import contactRoutes from './contactRoutes.js'
@@ -75,6 +76,10 @@ import publicJobRoutes from './publicJobRoutes.js'
 import accountDeletionRoutes from './accountDeletionRoutes.js'
 
 const employerRoutes = Router()
+// GST verification is mandatory: until a company's GSTIN is VERIFIED its
+// employers can only reach sign-in, their company record, GST verification,
+// support and notifications. Default-deny — see middleware/requireGstVerified.js.
+employerRoutes.use(employerAccessGate)
 employerRoutes.use('/auth', authRoutes)
 employerRoutes.use('/company', companyRoutes)
 employerRoutes.use('/jobs', jobRoutes)

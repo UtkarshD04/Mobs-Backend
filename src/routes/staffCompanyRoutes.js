@@ -6,6 +6,7 @@ import {
   getCompany,
   verifyCompany,
   rejectCompany,
+  reviewCompanyGst,
   blockCompany,
   unblockCompany,
   deleteCompany,
@@ -20,6 +21,7 @@ router.post('/', createCompany)
 router.get('/:id', getCompany)
 router.patch('/:id/verify', verifyCompany)
 router.patch('/:id/reject', rejectCompany)
+router.patch('/:id/gst-review', reviewCompanyGst)
 router.patch('/:id/block', blockCompany)
 router.patch('/:id/unblock', unblockCompany)
 router.delete('/:id', deleteCompany)

@@ -130,13 +130,16 @@ export function parseJobFilters(query = {}) {
 
 // { $or: [...] } clause matching a job whose [experienceMin, experienceMax]
 // overlaps any of the selected ranges, e.g. a 2–4yr job matches "1-3".
+// '0-1' is the "Fresher" option, so it only matches jobs open to zero
+// experience (experienceMin 0) — a 1–3yr job is not a fresher job.
 export function experienceOverlapQuery(rangeKeys) {
-  const ranges = rangeKeys.map((k) => EXPERIENCE_RANGES[k]).filter(Boolean)
-  if (!ranges.length) return null
+  const keys = rangeKeys.filter((k) => EXPERIENCE_RANGES[k])
+  if (!keys.length) return null
   return {
-    $or: ranges.map(({ min, max }) => {
+    $or: keys.map((key) => {
+      const { min, max } = EXPERIENCE_RANGES[key]
       const cond = { experienceMax: { $gte: min } }
-      if (Number.isFinite(max)) cond.experienceMin = { $lte: max }
+      if (Number.isFinite(max)) cond.experienceMin = { $lte: key === '0-1' ? 0 : max }
       return cond
     }),
   }
