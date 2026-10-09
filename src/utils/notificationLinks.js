@@ -38,6 +38,7 @@ const STAFF_CATEGORY_URLS = {
   resumes: '/app/resumes',
   'resume-pool': '/app/resumes',
   interviews: '/app/mock-interviews',
+  'campus-requests': '/app/campus-requests',
 }
 export function staffNotificationUrl(category) {
   return STAFF_CATEGORY_URLS[category] ?? '/app/dashboard'

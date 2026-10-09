@@ -33,6 +33,9 @@ export const env = {
   // Base URL of the internal staff portal (Company-Frontend) — used to build
   // the link inside staff password-reset emails.
   staffFrontendUrl: process.env.STAFF_FRONTEND_URL ?? 'http://localhost:5174',
+  // Who gets emailed when a college submits the "Add Your Campus" form
+  // (comma-separated). Unset → every active admin in the staff portal.
+  campusRequestNotifyEmails: process.env.CAMPUS_REQUEST_NOTIFY_EMAILS ?? '',
   smtp: {
     host: process.env.SMTP_HOST ?? '',
     port: Number(process.env.SMTP_PORT ?? 587),
