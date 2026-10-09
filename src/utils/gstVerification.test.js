@@ -1,3 +1,4 @@
+process.env.GST_VERIFICATION_REQUIRED = 'true'
 process.env.MONGO_URI ??= 'mongodb://127.0.0.1:27017/unused'
 process.env.JWT_SECRET ??= 'unit-test-secret'
 import { test, describe } from 'node:test'
@@ -224,6 +225,8 @@ describe('mandatory GSTIN at signup — input', () => {
     assert.equal(parseSignupGst({ gstin: '  ', gstLegalName: 'Acme' }).error.code, 'GSTIN_REQUIRED')
     assert.equal(parseSignupGst({ gstin: '27AAPFU0939F1ZA', gstLegalName: 'Acme' }).error.code, 'INVALID_GSTIN')
     assert.equal(parseSignupGst({ gstin: GSTIN }).error.code, 'INVALID_LEGAL_NAME')
+    assert.deepEqual(parseSignupGst({}, { required: false }), { gst: null })
+    assert.equal(parseSignupGst({ gstin: '27AAPFU0939F1ZA', gstLegalName: 'Acme' }, { required: false }).error.code, 'INVALID_GSTIN')
     assert.deepEqual(parseSignupGst({ gstin: ' 27aapfu0939f1zv', gstLegalName: ' Acme  Pvt Ltd ' }), { gst: { gstin: GSTIN, legalName: 'Acme Pvt Ltd' } })
   })
 })

@@ -106,6 +106,17 @@ export const gstVerifyLimiter = rateLimit({
   store: makeStore('rl:gst-verify:'),
 })
 
+// Signup-form GST pre-check — also a paid provider lookup, but with no
+// company yet, so it is keyed by client IP.
+export const gstSignupCheckLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { code: 'RATE_LIMITED', message: 'Too many GSTIN checks. Please try again in an hour.' },
+  store: makeStore('rl:gst-signup-check:'),
+})
+
 // Each AI call costs money; this stops a script from running up the bill.
 export const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

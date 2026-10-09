@@ -1,9 +1,10 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth.js'
-import { authLimiter } from '../middleware/rateLimit.js'
+import { authLimiter, gstSignupCheckLimiter } from '../middleware/rateLimit.js'
 import {
   login,
   signup,
+  checkGst,
   googleLogin,
   googleSignup,
   getMe,
@@ -27,6 +28,7 @@ router.post('/verify-otp', verifyPhoneOtp)
 router.post('/phone-login', authLimiter, phoneLogin)
 router.post('/login', authLimiter, login)
 router.post('/signup', authLimiter, signup)
+router.post('/check-gst', gstSignupCheckLimiter, checkGst)
 router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)
 router.post('/forgot-password', authLimiter, forgotPassword)

@@ -148,8 +148,10 @@ async function lookupAndDecide({ provider, gstin, submittedLegalName, companyNam
 // Validates the GST part of a signup body ({ gstin, gstLegalName }) — both
 // required — before anything else runs.
 // → { gst: { gstin, legalName } } | { error: { code, message } }
-export function parseSignupGst(body) {
+export function parseSignupGst(body, { required = true } = {}) {
   const gstin = normalizeGstin(body?.gstin)
+  // Optional mode: a blank GSTIN just skips verification; a filled one is still validated.
+  if (!gstin && !required) return { gst: null }
   if (!gstin) return { error: { code: 'GSTIN_REQUIRED', message: GST_MESSAGES.GSTIN_REQUIRED } }
   if (!isValidGstin(gstin)) return { error: { code: 'INVALID_GSTIN', message: GST_MESSAGES.INVALID_GSTIN } }
   const legalName = cleanName(body.gstLegalName)

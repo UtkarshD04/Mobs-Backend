@@ -91,6 +91,8 @@ export const login = asyncHandler(async (req, res) => {
 // record to create the company with: VERIFIED activates the account; any
 // other status leaves it pending (see middleware/requireGstVerified.js).
 async function signupGstOrRefuse(res, gst, companyName) {
+  // GSTIN left blank while verification isn't mandatory: create the company unverified.
+  if (!gst) return { record: { status: 'NOT_SUBMITTED', reason: '' }, code: 'GST_SKIPPED', message: '', audit: null }
   const result = await checkSignupGst({ ...gst, companyName })
   if (result.reject) {
     if (result.audit) await logGstAttempt({ company: null, ...result.audit })
@@ -107,6 +109,29 @@ async function createCompanyWithGst(fields, gstResult) {
 
 const signupGstSummary = (gstResult) => ({ code: gstResult.code, message: gstResult.message, status: gstResult.record.status })
 
+// Dry run of the signup GST check for the signup form: tells the employer
+// right away whether their GSTIN + legal name would verify. Creates and
+// stores nothing.
+export const checkGst = asyncHandler(async (req, res) => {
+  const { gst, error } = parseSignupGst(req.body)
+  if (error) return res.status(400).json({ ok: false, ...error })
+  const companyName = typeof req.body.companyName === 'string' ? req.body.companyName.trim() : ''
+  const result = await checkSignupGst({ ...gst, companyName })
+  if (result.reject) return res.status(result.reject.httpStatus).json({ ok: false, code: result.reject.code, message: result.reject.message })
+  const status = result.record.status
+  const verified = status === 'VERIFIED'
+  // UNDER_REVIEW (e.g. company name differs from the GST name) still lets signup proceed.
+  res.json({
+    ok: verified || status === 'UNDER_REVIEW',
+    verified,
+    status,
+    code: result.code,
+    message: result.message,
+    legalName: result.record.legalName ?? '',
+    registeredAddress: result.record.registeredAddress ?? '',
+  })
+})
+
 export const signup = asyncHandler(async (req, res) => {
   const { companyName, name, email, phone, password, industry, size, website, hq, phoneToken } = req.body ?? {}
   const required = { companyName, name, email, phone, password, industry, size }
@@ -116,7 +141,7 @@ export const signup = asyncHandler(async (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
   }
-  const { gst, error: gstError } = parseSignupGst(req.body)
+  const { gst, error: gstError } = parseSignupGst(req.body, { required: env.gstVerification.required })
   if (gstError) return res.status(400).json(gstError)
 
   // Phone OTP verification is mandatory once MSG91 is actually configured on
@@ -160,7 +185,7 @@ export const signup = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   })
 
-  await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
+  if (gstResult.audit) await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
   res.status(201).json({ ...authResponse(user, company), gstVerification: signupGstSummary(gstResult) })
 })
 
@@ -197,7 +222,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All company fields are required to register your company' })
   }
-  const { gst, error: gstError } = parseSignupGst(req.body)
+  const { gst, error: gstError } = parseSignupGst(req.body, { required: env.gstVerification.required })
   if (gstError) return res.status(400).json(gstError)
 
   const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
@@ -236,7 +261,7 @@ export const googleSignup = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   })
 
-  await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
+  if (gstResult.audit) await logGstAttempt({ company: company._id, user: user._id, ...gstResult.audit })
   res.status(201).json({ ...authResponse(user, company), gstVerification: signupGstSummary(gstResult) })
 })
 
