@@ -11,6 +11,7 @@ const PROFILE_FIELDS = [
   'maritalStatus',
   'currentCity',
   'relocationOk',
+  'college',
   'currentCompany',
   'designation',
   'experienceYears',

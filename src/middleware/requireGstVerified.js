@@ -1,5 +1,6 @@
 import { requireAuth } from './auth.js'
 import { GST_MESSAGES } from '../utils/gstVerification.js'
+import { env } from '../config/env.js'
 
 // Mandatory GST verification gate for the whole employer API
 // (/api/employer/*). Default-deny: every route needs a signed-in employer
@@ -36,7 +37,7 @@ export function classifyEmployerPath(method, path) {
 export const isCompanyGstVerified = (company) => company?.gstVerification?.status === 'VERIFIED'
 
 export function requireGstVerified(req, res, next) {
-  if (isCompanyGstVerified(req.company)) return next()
+  if (!env.gstVerification.required || isCompanyGstVerified(req.company)) return next()
   res.status(403).json({
     code: 'GST_VERIFICATION_REQUIRED',
     message: GST_MESSAGES.GST_VERIFICATION_REQUIRED,

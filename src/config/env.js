@@ -100,6 +100,11 @@ export const env = {
     apiSecret: process.env.GST_VERIFICATION_API_SECRET ?? '',
     baseUrl: process.env.GST_VERIFICATION_BASE_URL || process.env.GSTINAPI_BASE_URL || '',
     timeoutMs: Number(process.env.GST_VERIFICATION_TIMEOUT_MS ?? 10000) || 10000,
+    // GST_VERIFICATION_REQUIRED=true makes a verified GSTIN mandatory: signup
+    // refuses a missing GSTIN and the employer API stays locked until the
+    // company is VERIFIED. Off by default — GSTIN is then optional at signup
+    // (still checked when given) and nothing is gated on it.
+    required: process.env.GST_VERIFICATION_REQUIRED === 'true',
   },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download
