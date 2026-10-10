@@ -81,6 +81,12 @@ export const env = {
     // ##company## — see utils/outreach.js for the wording to register. Blank =
     // portal SMS reports "not set up" instead of sending.
     smsTemplateId: process.env.MSG91_SMS_TEMPLATE_ID ?? '',
+    // DLT-registered *OTP* SMS template sent through the SMS (Flow) API. When set, mobile OTPs are
+    // generated and checked by us and MSG91 only delivers the text, instead of using MSG91's OTP
+    // API above. The template needs one variable, named by otpFlowVariable (default ##otp##).
+    // Blank = the OTP API (MSG91_OTP_TEMPLATE_ID) is used, as before.
+    otpFlowTemplateId: process.env.MSG91_OTP_FLOW_TEMPLATE_ID ?? '',
+    otpFlowVariable: process.env.MSG91_OTP_FLOW_VARIABLE || 'otp',
   },
   // Groq API (free tier) for AI candidate search. Blank key = /ai endpoints return 503 and the
   // frontend falls back to its local parser.

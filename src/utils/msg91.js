@@ -1,5 +1,7 @@
 import axios from 'axios'
 import { env } from '../config/env.js'
+import PhoneOtp from '../models/PhoneOtp.js'
+import { generatePhoneOtp, hashPhoneOtp, phoneOtpMatches, PHONE_OTP_TTL_MS, PHONE_OTP_MAX_ATTEMPTS, PHONE_OTP_RESEND_MS } from './phoneOtp.js'
 
 const BASE_URL = 'https://control.msg91.com/api/v5/otp'
 
@@ -28,6 +30,7 @@ const isTestPhone = (phone) => phone.trim() === TEST_PHONE
 // both apps' code fields take exactly 6 digits.
 export async function sendOtp(phone) {
   if (isTestPhone(phone)) return
+  if (isFlowOtpEnabled()) return sendFlowOtp(phone.trim())
   const { data } = await axios.post(
     BASE_URL,
     { template_id: env.msg91.templateId, mobile: toMsg91Mobile(phone), otp_length: 6 },
@@ -42,16 +45,18 @@ export async function sendOtp(phone) {
 
 export const isSmsConfigured = () => Boolean(env.msg91.authKey && env.msg91.smsTemplateId)
 
-// Sends the DLT-registered outreach template to one 10-digit Indian mobile
-// number through MSG91's Flow API. `variables` fill the template's ##name##
-// style placeholders. Like the OTP calls, MSG91 can answer HTTP 200 with
-// `{ type: 'error' }` (unapproved template, no balance, DND number…), so the
-// body is checked rather than trusting the status code. Returns MSG91's
-// request id.
-export async function sendSmsFlow(phone, variables) {
+// True when OTPs go out as plain SMS through the Flow API (we own the code) rather than through
+// MSG91's OTP API (MSG91 owns the code). See MSG91_OTP_FLOW_TEMPLATE_ID in config/env.js.
+export const isFlowOtpEnabled = () => Boolean(env.msg91.otpFlowTemplateId)
+
+// Sends a DLT-registered template to one 10-digit Indian mobile number through MSG91's Flow API.
+// `variables` fill the template's ##name## style placeholders. Like the OTP calls, MSG91 can answer
+// HTTP 200 with `{ type: 'error' }` (unapproved template, no balance, DND number…), so the body is
+// checked rather than trusting the status code. Returns MSG91's request id.
+async function postFlow(templateId, phone, variables) {
   const { data } = await axios.post(
     'https://control.msg91.com/api/v5/flow',
-    { template_id: env.msg91.smsTemplateId, short_url: '0', recipients: [{ mobiles: toMsg91Mobile(phone), ...variables }] },
+    { template_id: templateId, short_url: '0', recipients: [{ mobiles: toMsg91Mobile(phone), ...variables }] },
     { headers: { authkey: env.msg91.authKey, 'Content-Type': 'application/json', accept: 'application/json' } }
   )
   if (data?.type !== 'success') {
@@ -62,11 +67,56 @@ export async function sendSmsFlow(phone, variables) {
   return data.message ?? null
 }
 
+// The recruiter outreach text (see utils/outreach.js).
+export const sendSmsFlow = (phone, variables) => postFlow(env.msg91.smsTemplateId, phone, variables)
+
+// Flow-API OTP: generate the code, remember only its hash, and text it. A failed send drops the
+// code again so the 30-second cooldown can't lock the person out of retrying.
+async function sendFlowOtp(phone) {
+  const existing = await PhoneOtp.findOne({ phone })
+  if (existing && Date.now() - existing.lastSentAt.getTime() < PHONE_OTP_RESEND_MS) {
+    const err = new Error('Please wait a few seconds before asking for another code')
+    err.status = 429
+    throw err
+  }
+
+  const code = generatePhoneOtp()
+  await PhoneOtp.findOneAndUpdate(
+    { phone },
+    { codeHash: hashPhoneOtp(phone, code), attempts: 0, lastSentAt: new Date(), expiresAt: new Date(Date.now() + PHONE_OTP_TTL_MS) },
+    { upsert: true }
+  )
+  try {
+    await postFlow(env.msg91.otpFlowTemplateId, phone, { [env.msg91.otpFlowVariable]: code })
+  } catch (err) {
+    await PhoneOtp.deleteOne({ phone })
+    throw err
+  }
+}
+
+// True for a right code, false for a wrong/expired one. A code works once, and five wrong guesses
+// burn it.
+async function verifyFlowOtp(phone, otp) {
+  const record = await PhoneOtp.findOne({ phone })
+  if (!record || record.expiresAt.getTime() < Date.now()) return false
+  if (record.attempts >= PHONE_OTP_MAX_ATTEMPTS) {
+    await PhoneOtp.deleteOne({ phone })
+    return false
+  }
+  if (!phoneOtpMatches(phone, otp, record.codeHash)) {
+    await PhoneOtp.updateOne({ phone }, { $inc: { attempts: 1 } })
+    return false
+  }
+  await PhoneOtp.deleteOne({ phone })
+  return true
+}
+
 // Returns true if MSG91 confirms the code, false for a wrong/expired code.
 // Any other failure (bad auth key, network) throws so the caller 500s
 // instead of silently treating it as a wrong OTP.
 export async function verifyOtp(phone, otp) {
   if (isTestPhone(phone)) return otp.trim() === TEST_OTP
+  if (isFlowOtpEnabled()) return verifyFlowOtp(phone.trim(), otp.trim())
   try {
     const { data } = await axios.post(
       `${BASE_URL}/verify`,
