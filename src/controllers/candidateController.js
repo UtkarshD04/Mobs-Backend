@@ -178,9 +178,15 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findOne({ _id: req.params.id, company: req.company._id })
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
 
+  // The candidate reads this in their application tracking, so a rejection can't go out without one.
+  const reason = String(rejectionReason ?? '').trim()
+  if (stage === 'rejected' && reason.length < 5) {
+    return res.status(400).json({ code: 'REJECTION_REASON_REQUIRED', message: 'Tell the candidate why they were not selected (a few words is enough).' })
+  }
+
   const wasHired = candidate.stage === 'hired'
   candidate.stage = stage
-  if (rejectionReason) candidate.rejectionReason = rejectionReason
+  if (stage === 'rejected') candidate.rejectionReason = reason.slice(0, 500)
 
   await candidate.save()
 

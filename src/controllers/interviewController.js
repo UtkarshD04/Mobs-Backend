@@ -5,6 +5,8 @@ import Interview from '../models/Interview.js'
 import Candidate from '../models/Candidate.js'
 import Employee from '../models/Employee.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
+import { syncApplicationStatusFromStage } from '../utils/applicationSync.js'
+import { logger } from '../config/logger.js'
 
 async function notifyCandidateEmployee(candidateId, payload) {
   const candidate = await Candidate.findById(candidateId).select('employee')
@@ -46,6 +48,13 @@ export const scheduleInterview = asyncHandler(async (req, res) => {
   if (candidate.stage === 'shared' || candidate.stage === 'shortlisted') {
     candidate.stage = 'interviewing'
     await candidate.save()
+    // So the candidate's application tracking moves to "Interview". The notification below already
+    // says it better than the generic stage-change one, hence notify: false.
+    try {
+      await syncApplicationStatusFromStage(candidate, 'interviewing', { notify: false })
+    } catch (err) {
+      logger.warn({ err }, 'Failed to sync interview stage onto the application')
+    }
   }
 
   await logActivity(req.company._id, `Interview scheduled with ${candidate.name} for ${role}`, 'navy')

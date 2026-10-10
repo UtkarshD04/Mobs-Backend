@@ -26,6 +26,21 @@ export async function countApplications(employeeId) {
   return Application.countDocuments({ employee: employeeId })
 }
 
+// What the candidate may see of an application. The stage-by-stage dated
+// timeline is a Premium perk (see "Application tracking" in config/premiumPlan.js):
+// Basic accounts still get the current status and which stages were reached, but
+// not when, nor who changed it — so the lock is enforced here, not just in the UI.
+function forEmployee(application, isPremium) {
+  const json = typeof application.toJSON === 'function' ? application.toJSON() : { ...application }
+  json.statusHistory = (json.statusHistory ?? []).map(({ status, changedOn }) => (isPremium ? { status, changedOn } : { status }))
+  json.historyLocked = !isPremium
+  if (json.status !== 'rejected') {
+    delete json.rejectionReason
+    delete json.rejectedAfter
+  }
+  return json
+}
+
 export const listApplications = asyncHandler(async (req, res) => {
   const { data, page, limit, total } = await paginate(Application, { employee: req.employee._id }, paginationParams(req), {
     sort: { appliedOn: -1 },
@@ -36,7 +51,7 @@ export const listApplications = asyncHandler(async (req, res) => {
     },
   })
   setPaginationHeaders(res, { page, limit, total })
-  res.json(data)
+  res.json(data.map((a) => forEmployee(a, req.employee.isPremium)))
 })
 
 export const applyToJob = asyncHandler(async (req, res) => {
@@ -92,7 +107,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
     application.statusHistory.push({ status: 'shared', changedOn: appliedOn, changedBy: 'employee' })
     application.status = 'shared'
     await application.save()
-    return res.status(201).json(application)
+    return res.status(201).json(forEmployee(application, employee.isPremium))
   }
 
   // Reaches the employer immediately — no staff dispatch step. Mirrors the
@@ -153,7 +168,7 @@ export const applyToJob = asyncHandler(async (req, res) => {
 
   await logActivity(job.company, `New application received for "${job.title}"`, 'green')
 
-  res.status(201).json(application)
+  res.status(201).json(forEmployee(application, employee.isPremium))
 })
 
 // Applications reach the employer instantly (status goes straight to
@@ -183,5 +198,5 @@ export const withdrawApplication = asyncHandler(async (req, res) => {
     { stage: 'rejected', rejectionReason: 'Candidate withdrew this application' }
   )
 
-  res.json(application)
+  res.json(forEmployee(application, req.employee.isPremium))
 })

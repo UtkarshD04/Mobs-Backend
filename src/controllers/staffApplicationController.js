@@ -29,7 +29,7 @@ export const listApplications = asyncHandler(async (req, res) => {
 })
 
 export const updateApplication = asyncHandler(async (req, res) => {
-  const { status, note } = req.body ?? {}
+  const { status, note, rejectionReason } = req.body ?? {}
   const application = await Application.findById(req.params.id).populate('job', 'title')
   if (!application) return res.status(404).json({ message: 'Application not found' })
 
@@ -39,7 +39,11 @@ export const updateApplication = asyncHandler(async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' })
     }
     application.status = status
-    if (status !== previousStatus) application.statusHistory.push({ status, changedOn: new Date(), changedBy: 'staff' })
+    if (status !== previousStatus) {
+      application.statusHistory.push({ status, changedOn: new Date(), changedBy: 'staff' })
+      application.rejectionReason = status === 'rejected' ? String(rejectionReason ?? '').trim().slice(0, 500) : ''
+      application.rejectedAfter = status === 'rejected' ? previousStatus : ''
+    }
   }
   if (note !== undefined) application.note = note
 
@@ -51,7 +55,7 @@ export const updateApplication = asyncHandler(async (req, res) => {
       await notifyEmployee(employee, {
         category: 'applications',
         title: 'Application update',
-        body: STATUS_UPDATE_MESSAGES[status](application.job?.title ?? 'a role'),
+        body: STATUS_UPDATE_MESSAGES[status](application.job?.title ?? 'a role', { reason: application.rejectionReason, after: application.rejectedAfter }),
       })
     }
   }

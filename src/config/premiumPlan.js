@@ -44,14 +44,9 @@ export const PLAN_FEATURE_GROUPS = [
     features: [
       { label: 'Browse jobs', basic: 'Unlimited', premium: 'Unlimited' },
       { label: 'Job applications', basic: `First ${FREE_APPLICATION_LIMIT} applications`, premium: 'Unlimited applications' },
-      { label: 'Job search filters', basic: 'Basic', premium: 'Advanced: role, salary, location, work mode, experience and more' },
-      { label: 'Job alerts', basic: 'Standard', premium: 'Instant & personalised job alerts' },
-      { label: 'Urgent hiring jobs', basic: 'Limited visibility', premium: 'Priority access to relevant urgent hiring opportunities' },
-      { label: 'Early applicant access', basic: false, premium: 'Early job notifications' },
-      { label: 'Location preference', basic: true, premium: 'Personalised location matching' },
-      { label: 'Work mode preference', basic: true, premium: 'Remote / Hybrid / On-site preference matching' },
-      { label: 'Job matching', basic: 'Basic', premium: 'Personalised job-fit recommendations' },
-      { label: 'Application tracking', basic: 'Basic', premium: 'Detailed application status visibility' },
+      { label: 'Application tracking', basic: false, premium: 'Track every application stage by stage, with dates' },
+      { label: 'Urgent hiring jobs', basic: 'View only', premium: 'Apply to urgent hiring jobs' },
+      { label: 'Job matching', basic: 'Basic', premium: 'Wider pool and more personalised job-fit picks' },
     ],
   },
   {
@@ -65,18 +60,6 @@ export const PLAN_FEATURE_GROUPS = [
       { label: 'ATS resume score', basic: false, premium: 'ATS score + improvement guidance', service: 'ats_review' },
       { label: 'Job-specific resume', basic: false, premium: 'Customised CV for relevant roles', service: 'cv_enhancement' },
       { label: 'Profile presentation', basic: 'Basic', premium: 'Recruiter-ready professional presentation', service: 'profile_enhancement' },
-      { label: 'Profile verification', basic: 'Basic', premium: 'Mzobs Verified Talent' },
-    ],
-  },
-  {
-    key: 'visibility',
-    label: 'Recruiter visibility',
-    features: [
-      { label: 'Recruiter visibility', basic: 'Standard', premium: 'Premium talent visibility' },
-      { label: 'Recruiter contact', basic: false, premium: 'Eligible recruiter connection opportunities' },
-      { label: 'Talent spotlight', basic: false, premium: 'Opportunity to be featured to relevant employers' },
-      { label: 'Referral opportunities', basic: 'Basic', premium: 'Premium referral opportunities where available' },
-      { label: 'Internal vacancies', basic: 'Standard', premium: 'Priority access to eligible internal opportunities' },
     ],
   },
   {
@@ -103,7 +86,6 @@ export const PLAN_FEATURE_GROUPS = [
       { label: 'Personality / professional presence', basic: 'Basic resources', premium: 'Personalised professional presence coaching', service: 'communication_coaching' },
       { label: 'Interview feedback', basic: 'Basic', premium: 'Detailed human interviewer scorecard', service: 'mock_interview' },
       { label: 'Interview preparation', basic: 'General resources', premium: 'Role & company-specific preparation', service: 'interview_coaching' },
-      { label: 'Real workshops', basic: 'Selected / free workshops', premium: 'Premium workshops + priority access' },
     ],
   },
   {

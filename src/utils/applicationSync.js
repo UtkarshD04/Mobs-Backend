@@ -9,7 +9,8 @@ export const STATUS_UPDATE_MESSAGES = {
   shared: (job) => `Your profile for ${job} has been shared with the employer.`,
   interview: (job) => `Your application for ${job} has moved to the interview stage.`,
   selected: (job) => `You've been selected for ${job}. Congratulations!`,
-  rejected: (job) => `Your application for ${job} was not selected this time.`,
+  rejected: (job, { reason, after } = {}) =>
+    `Your application for ${job} was not selected${after === 'interview' ? ' after the interview' : ' this time'}.${reason ? ` Reason: ${reason}` : ''}`,
 }
 
 // What the employer's pipeline stage (Candidate.stage) means on the candidate's
@@ -36,25 +37,41 @@ export async function markApplicationViewed(applicationId) {
 
 // Carries an employer's stage change (shortlist, interview, hire, reject) onto the
 // candidate's Application so their "My applications" page and notifications follow.
-// A withdrawn application is never reopened, and an unchanged status is a no-op.
-export async function syncApplicationStatusFromStage(candidate, stage) {
+// A withdrawn application is never reopened, and an unchanged status is a no-op —
+// except that re-rejecting with a new reason updates the reason the candidate sees.
+// Pass `notify: false` when the caller already sends its own, more specific notification
+// (e.g. scheduling an interview).
+export async function syncApplicationStatusFromStage(candidate, stage, { notify = true } = {}) {
   const status = applicationStatusForStage(stage)
   if (!status || !candidate.application) return
 
   const application = await Application.findById(candidate.application).populate('job', 'title')
-  if (!application || application.status === 'withdrawn' || application.status === status) return
+  if (!application || application.status === 'withdrawn') return
 
+  const reason = status === 'rejected' ? String(candidate.rejectionReason ?? '').trim() : ''
+
+  if (application.status === status) {
+    if (status === 'rejected' && reason && application.rejectionReason !== reason) {
+      application.rejectionReason = reason
+      await application.save()
+    }
+    return
+  }
+
+  const previous = application.status
   application.status = status
   application.statusHistory.push({ status, changedOn: new Date(), changedBy: 'employer' })
+  application.rejectionReason = reason
+  application.rejectedAfter = status === 'rejected' ? previous : ''
   await application.save()
 
   const message = STATUS_UPDATE_MESSAGES[status]
-  const employee = message ? await Employee.findById(application.employee) : null
+  const employee = notify && message ? await Employee.findById(application.employee) : null
   if (employee) {
     await notifyEmployee(employee, {
       category: 'applications',
       title: 'Application update',
-      body: message(application.job?.title ?? 'a role'),
+      body: message(application.job?.title ?? 'a role', { reason, after: application.rejectedAfter }),
     })
   }
 }

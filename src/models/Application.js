@@ -34,6 +34,12 @@ const applicationSchema = new Schema(
     // Applications reach the employer the moment they're made, so 'shared' alone
     // doesn't mean anyone has looked at it.
     employerViewedOn: { type: Date, default: null },
+    // Why the employer (or staff) turned this application down, and how far it had got
+    // ('shared', 'shortlisted' or 'interview') — written when the status becomes 'rejected'
+    // and cleared if it ever leaves it. This is candidate-facing: it's what the candidate
+    // reads in application tracking, so it must be the employer's own words, not an internal note.
+    rejectionReason: { type: String, default: '', maxlength: 500 },
+    rejectedAfter: { type: String, default: '' },
   },
   { timestamps: true }
 )
