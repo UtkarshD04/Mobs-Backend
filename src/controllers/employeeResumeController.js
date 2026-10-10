@@ -4,6 +4,7 @@ import { validateResumeFile } from '../utils/fileValidation.js'
 import { employeeResumeKey, serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
 import { extractResumeText } from '../utils/resumeText.js'
 import { logger } from '../config/logger.js'
+import { notifyEmployee } from '../utils/notifyEmployee.js'
 
 function serialize(employee) {
   return {
@@ -72,6 +73,19 @@ export const uploadResumeFile = asyncHandler(async (req, res) => {
   }
 
   logger.info({ employeeId: String(employee._id), version: nextVersion }, 'Resume uploaded')
+
+  // Best-effort: the upload already succeeded, so a failed notification must never turn it into an error.
+  try {
+    await notifyEmployee(employee, {
+      category: 'resume',
+      title: previousResume ? 'Resume updated' : 'Resume uploaded',
+      body: previousResume
+        ? `Your new resume (${req.file.originalname}) is saved. Applications you make from now on will use it.`
+        : `Your resume (${req.file.originalname}) is uploaded and verified. You can now apply to jobs.`,
+    })
+  } catch (err) {
+    logger.warn({ err, employeeId: String(employee._id) }, 'Failed to send the resume upload notification')
+  }
   res.status(201).json(serialize(employee))
 })
 
