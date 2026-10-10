@@ -98,6 +98,24 @@ describe('mobile OTP through the SMS (Flow) API', () => {
     assert.equal(sent.length, 1)
   })
 
+  test('also fills a second "valid for N minutes" variable when one is configured', async () => {
+    env.msg91.otpFlowVariable = 'var1'
+    env.msg91.otpFlowValidityVariable = 'var2'
+    await sendOtp(PHONE)
+    const recipient = sent[0].body.recipients[0]
+    assert.match(recipient.var1, /^\d{6}$/)
+    assert.equal(recipient.var2, '10')
+    env.msg91.otpFlowValidityVariable = ''
+  })
+
+  test('never lets the validity variable overwrite the code when both share a name', async () => {
+    env.msg91.otpFlowVariable = 'numeric'
+    env.msg91.otpFlowValidityVariable = 'numeric'
+    await sendOtp(PHONE)
+    assert.match(sent[0].body.recipients[0].numeric, /^\d{6}$/)
+    env.msg91.otpFlowValidityVariable = ''
+  })
+
   test('without a flow template it falls back to the OTP API', async () => {
     env.msg91.otpFlowTemplateId = ''
     await sendOtp(PHONE)

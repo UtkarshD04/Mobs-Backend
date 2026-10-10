@@ -87,6 +87,9 @@ export const env = {
     // Blank = the OTP API (MSG91_OTP_TEMPLATE_ID) is used, as before.
     otpFlowTemplateId: process.env.MSG91_OTP_FLOW_TEMPLATE_ID ?? '',
     otpFlowVariable: process.env.MSG91_OTP_FLOW_VARIABLE || 'otp',
+    // Optional second variable for templates that also say how long the code lasts ("Valid for ##x##
+    // minutes"). Filled with the code's lifetime in minutes. Blank = not sent.
+    otpFlowValidityVariable: process.env.MSG91_OTP_FLOW_VALIDITY_VARIABLE ?? '',
   },
   // Groq API (free tier) for AI candidate search. Blank key = /ai endpoints return 503 and the
   // frontend falls back to its local parser.

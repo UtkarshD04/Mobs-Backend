@@ -87,7 +87,11 @@ async function sendFlowOtp(phone) {
     { upsert: true }
   )
   try {
-    await postFlow(env.msg91.otpFlowTemplateId, phone, { [env.msg91.otpFlowVariable]: code })
+    const { otpFlowVariable, otpFlowValidityVariable } = env.msg91
+    await postFlow(env.msg91.otpFlowTemplateId, phone, {
+      [otpFlowVariable]: code,
+      ...(otpFlowValidityVariable && otpFlowValidityVariable !== otpFlowVariable ? { [otpFlowValidityVariable]: String(PHONE_OTP_TTL_MS / 60000) } : {}),
+    })
   } catch (err) {
     await PhoneOtp.deleteOne({ phone })
     throw err
