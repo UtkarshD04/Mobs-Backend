@@ -185,6 +185,7 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
   }
 
   const wasHired = candidate.stage === 'hired'
+  const wasOffered = candidate.stage === 'offered'
   candidate.stage = stage
   if (stage === 'rejected') candidate.rejectionReason = reason.slice(0, 500)
 
@@ -194,6 +195,14 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
     await syncApplicationStatusFromStage(candidate, stage)
   } catch (err) {
     logger.warn({ err }, 'Failed to sync candidate stage onto the application')
+  }
+
+  if (stage === 'offered' && !wasOffered) {
+    try {
+      await notifyApplicationOffered(candidate)
+    } catch (err) {
+      logger.warn({ err }, 'Failed to notify the candidate about the offer')
+    }
   }
 
   if (stage === 'hired' && !wasHired) {

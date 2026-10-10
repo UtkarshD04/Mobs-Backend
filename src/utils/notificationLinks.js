@@ -12,8 +12,11 @@
 // covers all of these, so every category lands there until dedicated
 // per-category pages exist.
 const EMPLOYEE_FALLBACK_URL = '/employees/profile'
-export function employeeNotificationUrl() {
-  return EMPLOYEE_FALLBACK_URL
+const EMPLOYEE_CATEGORY_URLS = {
+  applications: '/employees/applications',
+}
+export function employeeNotificationUrl(category) {
+  return EMPLOYEE_CATEGORY_URLS[category] ?? EMPLOYEE_FALLBACK_URL
 }
 
 // Employer-Frontend — verified 1:1 against src/App.jsx's routes.

@@ -28,11 +28,35 @@ export function applicationStatusForStage(stage) {
   return STATUS_FOR_STAGE[stage] ?? null
 }
 
-// Records the first time the employer opened the candidate. Idempotent — later
-// views leave the original timestamp alone.
+async function notifyApplicant(application, message) {
+  const employee = await Employee.findById(application.employee)
+  if (employee) await notifyEmployee(employee, { category: 'applications', title: 'Application update', body: message })
+}
+
+const loadApplication = (id) =>
+  Application.findById(id).populate({ path: 'job', select: 'title company', populate: { path: 'company', select: 'name' } })
+
+// Records the first time the employer opened the candidate and, that one time, tells the
+// candidate. Idempotent — later views leave the original timestamp alone and stay silent.
 export async function markApplicationViewed(applicationId) {
   if (!applicationId) return
-  await Application.updateOne({ _id: applicationId, employerViewedOn: null }, { $set: { employerViewedOn: new Date() } })
+  const { modifiedCount } = await Application.updateOne({ _id: applicationId, employerViewedOn: null }, { $set: { employerViewedOn: new Date() } })
+  if (!modifiedCount) return
+
+  const application = await loadApplication(applicationId)
+  if (!application || application.status === 'withdrawn') return
+  const employer = application.job?.company?.name ?? 'The employer'
+  await notifyApplicant(application, `${employer} viewed your profile for ${application.job?.title ?? 'a role'}.`)
+}
+
+// An offer has no candidate-facing application status of its own (the application stays where it
+// is), but it is the biggest update a candidate can get, so it always gets a notification.
+export async function notifyApplicationOffered(candidate) {
+  if (!candidate.application) return
+  const application = await loadApplication(candidate.application)
+  if (!application || application.status === 'withdrawn') return
+  const employer = application.job?.company?.name ?? 'The employer'
+  await notifyApplicant(application, `${employer} has made you an offer for ${application.job?.title ?? 'a role'}. Check your messages and email for the details.`)
 }
 
 // Carries an employer's stage change (shortlist, interview, hire, reject) onto the
