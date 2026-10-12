@@ -61,6 +61,8 @@ export const env = {
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly
   // with a 503 instead of crashing (same no-op pattern as SMTP/VAPID/Razorpay).
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  // Bundle ID of the iOS app — the `aud` of a "Sign in with Apple" identity token.
+  appleClientId: process.env.APPLE_CLIENT_ID ?? 'com.mzobs.app',
   // Oldest Android versionCode allowed to run the mobile app; older builds get a blocking
   // "Update required" screen. 0 = off. Raise it (in Dokploy env) to force an update.
   minAndroidVersionCode: Number(process.env.MIN_ANDROID_VERSION_CODE ?? 0) || 0,

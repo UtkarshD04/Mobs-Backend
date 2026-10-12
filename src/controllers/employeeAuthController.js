@@ -7,6 +7,7 @@ import { initialsOf } from '../utils/initials.js'
 import { createResetToken, hashResetToken, resetPasswordEmailHtml } from '../utils/passwordReset.js'
 import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
+import { verifyAppleToken } from '../utils/appleAuth.js'
 import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import Employee from '../models/Employee.js'
 import Payment from '../models/Payment.js'
@@ -329,85 +330,127 @@ export const emailLogin = asyncHandler(async (req, res) => {
   res.json(authResponse(employee))
 })
 
-// Signs in an existing employee account via a Google ID token. Deliberately
+// Signs in an existing employee account via a social ID token (Google / Apple). Deliberately
 // does not create an account on a missing match — signup needs phone/
-// graduation Google can't supply, so that has to go through googleSignup.
-export const googleLogin = asyncHandler(async (req, res) => {
-  const { credential } = req.body ?? {}
-  const { googleId, email } = await verifyGoogleToken(credential)
+// graduation the provider can't supply, so that has to go through the signup route.
+function socialLogin({ label, idField, verify }) {
+  return asyncHandler(async (req, res) => {
+    const { credential } = req.body ?? {}
+    const { providerId, email } = await verify(credential)
 
-  const employee = await Employee.findOne({ email })
-  if (!employee) return res.status(404).json({ message: 'No account found for this Google email. Please sign up first.' })
+    // Apple's relay addresses can differ from the account email, so a returning Apple user is
+    // matched by their stable Apple ID first.
+    const employee = (idField === 'appleId' ? await Employee.findOne({ appleId: providerId }) : null) ?? (await Employee.findOne({ email }))
+    if (!employee) return res.status(404).json({ message: `No account found for this ${label} email. Please sign up first.` })
 
-  if (!employee.googleId) {
-    employee.googleId = googleId
-  }
-  if (employee.status === 'suspended') {
-    return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
-  }
+    if (!employee[idField]) {
+      employee[idField] = providerId
+    }
+    if (employee.status === 'suspended') {
+      return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+    }
 
-  employee.emailVerified = true // Google has confirmed this address
-  employee.lastActiveAt = new Date()
-  await employee.save()
+    employee.emailVerified = true // the provider has confirmed this address
+    employee.lastActiveAt = new Date()
+    await employee.save()
 
-  res.json(authResponse(employee))
+    res.json(authResponse(employee))
+  })
+}
+
+export const googleLogin = socialLogin({
+  label: 'Google',
+  idField: 'googleId',
+  verify: async (credential) => {
+    const { googleId, email } = await verifyGoogleToken(credential)
+    return { providerId: googleId, email }
+  },
 })
 
-export const googleSignup = asyncHandler(async (req, res) => {
-  const { credential, phone, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
-  if (typeof phone !== 'string' || !phone.trim()) {
-    return res.status(400).json({ message: 'Phone is required' })
-  }
-  if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
-    return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
-  }
-  // See the matching comment in signup() above — required once MSG91 is configured.
-  const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
-  if (env.msg91.authKey && !phoneVerified) {
-    return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
-  }
+export const appleLogin = socialLogin({
+  label: 'Apple',
+  idField: 'appleId',
+  verify: async (credential) => {
+    const { appleId, email } = await verifyAppleToken(credential)
+    return { providerId: appleId, email }
+  },
+})
 
-  const { googleId, email, name } = await verifyGoogleToken(credential)
+function socialSignup({ idField, verify }) {
+  return asyncHandler(async (req, res) => {
+    const { credential, phone, experience, graduation, city, state, pincode, paymentOrderId, phoneToken } = req.body ?? {}
+    if (typeof phone !== 'string' || !phone.trim()) {
+      return res.status(400).json({ message: 'Phone is required' })
+    }
+    if (typeof pincode === 'string' && pincode.trim() && !/^\d{6}$/.test(pincode.trim())) {
+      return res.status(400).json({ message: 'Enter a valid 6-digit pincode' })
+    }
+    // See the matching comment in signup() above — required once MSG91 is configured.
+    const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
+    if (env.msg91.authKey && !phoneVerified) {
+      return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
+    }
 
-  const existing = await Employee.findOne({ email })
-  if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
+    const { providerId, email, name } = await verify(credential, req.body)
 
-  const existingPhone = await Employee.findOne({ phone: phone.trim() })
-  if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
+    const existing = await Employee.findOne({ email })
+    if (existing) return res.status(409).json({ message: 'An account with this email already exists' })
 
-  let claimedPayment = null
-  if (typeof paymentOrderId === 'string' && paymentOrderId.trim()) {
-    claimedPayment = await Payment.findOne({
-      razorpayOrderId: paymentOrderId.trim(),
-      purpose: 'employee_subscription',
-      employee: null,
-      status: 'paid',
+    const existingPhone = await Employee.findOne({ phone: phone.trim() })
+    if (existingPhone) return res.status(409).json({ message: 'An account with this mobile number already exists' })
+
+    let claimedPayment = null
+    if (typeof paymentOrderId === 'string' && paymentOrderId.trim()) {
+      claimedPayment = await Payment.findOne({
+        razorpayOrderId: paymentOrderId.trim(),
+        purpose: 'employee_subscription',
+        employee: null,
+        status: 'paid',
+      })
+    }
+
+    const employee = await Employee.create({
+      name: name || email,
+      email,
+      phone: phone.trim(),
+      phoneVerified,
+      emailVerified: true, // the provider has confirmed this address
+      [idField]: providerId,
+      experience: experience === 'experienced' ? 'experienced' : 'fresher',
+      graduation: typeof graduation === 'string' ? graduation.trim() : '',
+      currentCity: typeof city === 'string' ? city.trim() : '',
+      state: typeof state === 'string' ? state.trim() : '',
+      pincode: typeof pincode === 'string' ? pincode.trim() : '',
+      status: 'active',
+      lastActiveAt: new Date(),
+      subscription: claimedPayment ? { status: 'paid', amount: claimedPayment.amount, paidOn: claimedPayment.paidAt } : undefined,
     })
-  }
 
-  const employee = await Employee.create({
-    name: name || email,
-    email,
-    phone: phone.trim(),
-    phoneVerified,
-    emailVerified: true, // Google has confirmed this address
-    googleId,
-    experience: experience === 'experienced' ? 'experienced' : 'fresher',
-    graduation: typeof graduation === 'string' ? graduation.trim() : '',
-    currentCity: typeof city === 'string' ? city.trim() : '',
-    state: typeof state === 'string' ? state.trim() : '',
-    pincode: typeof pincode === 'string' ? pincode.trim() : '',
-    status: 'active',
-    lastActiveAt: new Date(),
-    subscription: claimedPayment ? { status: 'paid', amount: claimedPayment.amount, paidOn: claimedPayment.paidAt } : undefined,
+    if (claimedPayment) {
+      claimedPayment.employee = employee._id
+      await claimedPayment.save()
+    }
+
+    res.status(201).json(authResponse(employee))
   })
+}
 
-  if (claimedPayment) {
-    claimedPayment.employee = employee._id
-    await claimedPayment.save()
-  }
 
-  res.status(201).json(authResponse(employee))
+export const googleSignup = socialSignup({
+  idField: 'googleId',
+  verify: async (credential) => {
+    const { googleId, email, name } = await verifyGoogleToken(credential)
+    return { providerId: googleId, email, name }
+  },
+})
+
+// Apple only ever hands the user's name to the app (not in the token), so it comes in the body.
+export const appleSignup = socialSignup({
+  idField: 'appleId',
+  verify: async (credential, body) => {
+    const { appleId, email } = await verifyAppleToken(credential)
+    return { providerId: appleId, email, name: typeof body?.name === 'string' ? body.name.trim() : '' }
+  },
 })
 
 // POST /api/employee/auth/handoff — called with the token a login/signup

@@ -7,6 +7,8 @@ import {
   signup,
   googleLogin,
   googleSignup,
+  appleLogin,
+  appleSignup,
   getMe,
   updateMe,
   forgotPassword,
@@ -34,6 +36,8 @@ router.post('/email-login', authLimiter, emailLogin)
 router.post('/signup', authLimiter, signup)
 router.post('/google-login', authLimiter, googleLogin)
 router.post('/google-signup', authLimiter, googleSignup)
+router.post('/apple-login', authLimiter, appleLogin)
+router.post('/apple-signup', authLimiter, appleSignup)
 router.post('/forgot-password', authLimiter, forgotPassword)
 router.post('/reset-password', authLimiter, resetPassword)
 router.post('/handoff', authLimiter, requireEmployeeAuth, createHandoff)

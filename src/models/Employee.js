@@ -95,6 +95,8 @@ const employeeSchema = new Schema(
     // password at all.
     passwordHash: { type: String, required: false, select: false },
     googleId: { type: String, default: null, index: true, sparse: true },
+    // Set for accounts created/linked via "Sign in with Apple" (iOS app).
+    appleId: { type: String, default: null, index: true, sparse: true },
     experience: { type: String, enum: ['fresher', 'experienced'], default: 'fresher' },
     // No longer collected at signup — kept optional, filled in later from
     // the profile page if the employee chooses to.
