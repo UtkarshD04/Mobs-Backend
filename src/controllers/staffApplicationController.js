@@ -4,6 +4,7 @@ import Application, { APPLICATION_STATUSES } from '../models/Application.js'
 import Employee from '../models/Employee.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 import { STATUS_UPDATE_MESSAGES } from '../utils/applicationSync.js'
+import { sendCsv } from '../utils/csv.js'
 
 export const listApplications = asyncHandler(async (req, res) => {
   const { jobId, status } = req.query
@@ -26,6 +27,33 @@ export const listApplications = asyncHandler(async (req, res) => {
   })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
+})
+
+// GET /api/staff/applications/export — every application as a CSV (uncapped),
+// same jobId/status filters as the list.
+export const exportApplications = asyncHandler(async (req, res) => {
+  const { jobId, status } = req.query
+  const query = {}
+  if (jobId) query.job = jobId
+  if (status && status !== 'all') query.status = status
+
+  const applications = await Application.find(query)
+    .sort({ appliedOn: -1 })
+    .populate({ path: 'employee', select: 'name email phone currentCity college graduation experience experienceYears' })
+    .populate({ path: 'job', select: 'title company', populate: { path: 'company', select: 'name' } })
+    .lean()
+
+  const headers = [
+    'Candidate', 'Email', 'Phone', 'City', 'College', 'Experience', 'Job', 'Company', 'Status', 'Fit %', 'Premium',
+    'Applied On', 'Employer Viewed On', 'Rejection Reason', 'Rejected After', 'Internal Note',
+  ]
+  const rows = applications.map((a) => [
+    a.employee?.name, a.employee?.email, a.employee?.phone, a.employee?.currentCity, a.employee?.college,
+    a.employee?.experience === 'experienced' ? `Experienced (${a.employee.experienceYears ?? 0} yrs)` : 'Fresher',
+    a.job?.title, a.job?.company?.name, a.status, a.fit, a.premium ? 'Yes' : 'No',
+    a.appliedOn, a.employerViewedOn, a.rejectionReason, a.rejectedAfter, a.note,
+  ])
+  sendCsv(res, `applications-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
 })
 
 export const updateApplication = asyncHandler(async (req, res) => {

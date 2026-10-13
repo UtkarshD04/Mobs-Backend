@@ -6,6 +6,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import Employee from '../models/Employee.js'
 import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
 import { serializeResumeSubdoc } from '../utils/resumeAccess.js'
+import { sendCsv } from '../utils/csv.js'
 
 export const listEmployees = asyncHandler(async (req, res) => {
   const { search, status } = req.query
@@ -23,6 +24,36 @@ export const listEmployees = asyncHandler(async (req, res) => {
   })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
+})
+
+// GET /api/staff/employees/export — every candidate account as a CSV
+// (not capped like the paginated list). Honors the same status/search filters.
+export const exportEmployees = asyncHandler(async (req, res) => {
+  const { search, status } = req.query
+  const query = {}
+  if (status && status !== 'all') query.status = status
+  if (search) {
+    const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(escaped, 'i')
+    query.$or = [{ name: regex }, { email: regex }]
+  }
+
+  const employees = await Employee.find(query).select('-passwordHash').sort({ createdAt: -1 }).lean()
+  const headers = [
+    'Name', 'Email', 'Phone', 'Status', 'Gender', 'DOB', 'City', 'State', 'Pincode', 'College', 'Graduation',
+    'Experience', 'Experience Years', 'Current Company', 'Designation', 'Current CTC', 'Notice Period',
+    'Preferred Role', 'Skills', 'Preferred Locations', 'LinkedIn', 'GitHub', 'Portfolio',
+    'Resume Status', 'Resume File', 'Resume Uploaded On', 'Skill Track', 'Trust Score',
+    'Subscription', 'Subscription Amount', 'Paid On', 'Joined On', 'Last Active',
+  ]
+  const rows = employees.map((e) => [
+    e.name, e.email, e.phone, e.status, e.gender, e.dob, e.currentCity, e.state, e.pincode, e.college, e.graduation,
+    e.experience, e.experienceYears, e.currentCompany, e.designation, e.currentCtc, e.noticePeriod,
+    e.preferredRole, (e.skills ?? []).join('; '), (e.preferredLocations ?? []).join('; '), e.linkedin, e.github, e.portfolioLink,
+    e.resume?.status, e.resume?.file, e.resume?.uploadedOn, e.skillTrack?.label, e.shortlist?.trustScore,
+    e.subscription?.status, e.subscription?.status === 'paid' ? e.subscription.amount : '', e.subscription?.paidOn, e.createdAt, e.lastActiveAt,
+  ])
+  sendCsv(res, `employees-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
 })
 
 // GET /api/staff/employees/:employeeId — one candidate's full profile for the
