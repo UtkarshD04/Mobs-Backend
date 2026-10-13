@@ -15,6 +15,7 @@ import { markApplicationViewed, syncApplicationStatusFromStage } from '../utils/
 import { env } from '../config/env.js'
 import { FEEDBACK_REASONS, toEmployerView, validateSubmission } from '../utils/rejectionFeedback.js'
 import { recordRejectionFeedback } from '../utils/rejectionFeedbackService.js'
+import RejectionFeedback from '../models/RejectionFeedback.js'
 
 // A user@example.com -> u***@example.com style mask — enough to show the
 // applicant has a real, reachable email/phone without revealing it before
@@ -194,6 +195,18 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findOne({ _id: req.params.id, company: req.company._id })
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
 
+  // Already rejected. A repeat click must not create a second rejection, but an employer who was rejected without any
+  // feedback (older app build, or a follow-up from Mzobs) can still supply it now. Feedback that exists is changed
+  // only through the resubmit route, and only when a reviewer has asked for it.
+  if (stage === 'rejected' && candidate.stage === 'rejected' && feedbackValue) {
+    if (await RejectionFeedback.exists({ candidate: candidate._id })) {
+      return res.status(409).json({ code: 'ALREADY_REJECTED', message: 'This candidate was already rejected. If Mzobs asked you to update the feedback, use Feedback follow-ups.' })
+    }
+    if (!candidate.application || !candidate.employee) return res.status(409).json({ code: 'ALREADY_REJECTED', message: 'This candidate was already rejected.' })
+    const recorded = await recordRejectionFeedback({ candidate, userId: req.user._id, value: feedbackValue })
+    return res.json({ ...(await redactList(req.company._id, candidate)), feedback: { ...toEmployerView(recorded.feedback), result: recorded.result } })
+  }
+
   // A rejection can't go out without a reason: structured feedback (validated above) or, for older clients, a few words of free text.
   // Neither is shown to the candidate as written: they only ever see feedback a Mzobs reviewer approved.
   const reason = String(rejectionReason ?? '').trim()
@@ -234,8 +247,15 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
   // show it on otherwise). The stage change is already saved, so a failure here is surfaced, not swallowed.
   let feedback = null
   if (feedbackValue && candidate.application && candidate.employee) {
-    const recorded = await recordRejectionFeedback({ candidate, userId: req.user._id, value: feedbackValue })
-    feedback = { ...toEmployerView(recorded.feedback), result: recorded.result }
+    try {
+      const recorded = await recordRejectionFeedback({ candidate, userId: req.user._id, value: feedbackValue })
+      feedback = { ...toEmployerView(recorded.feedback), result: recorded.result }
+    } catch (err) {
+      // The rejection stands (it never waits on review); Mzobs will chase the missing feedback as a follow-up.
+      logger.error({ err }, 'Failed to save rejection feedback after rejecting a candidate')
+      const body = await redactList(req.company._id, candidate)
+      return res.json({ ...body, feedbackSaved: false, message: 'The candidate was rejected, but the feedback could not be saved. Please submit it again from the candidate page.' })
+    }
   }
 
   const body = await redactList(req.company._id, candidate)

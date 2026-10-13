@@ -126,3 +126,24 @@ export const aiLimiter = rateLimit({
   message: { message: 'Too many AI searches. Please slow down and try again shortly.' },
   store: makeStore('rl:ai:'),
 })
+
+// Reviewer actions on rejection feedback and follow-ups (approve, return, notify, retry...). Generous for a
+// working queue, but low enough to stop a runaway script or a stuck retry loop from spamming employers.
+export const feedbackActionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many actions. Please slow down.' },
+  store: makeStore('rl:feedback-action:'),
+})
+
+// A candidate reporting or asking about feedback on their own applications.
+export const candidateFeedbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please try again later.' },
+  store: makeStore('rl:candidate-feedback:'),
+})
