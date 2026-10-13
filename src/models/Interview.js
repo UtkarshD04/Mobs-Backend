@@ -20,6 +20,14 @@ const interviewSchema = new Schema(
       enum: ['Confirmed', 'Awaiting confirmation', 'Completed', 'Cancelled', 'Rescheduled'],
       default: 'Confirmed',
     },
+    // Result of emailing the candidate about this interview, when the recruiter asked for it.
+    email: {
+      kind: { type: String, enum: ['scheduled', 'rescheduled', 'cancelled'] },
+      status: { type: String, enum: ['sent', 'failed', 'not_configured', 'no_email', 'not_allowed'] },
+      to: String, // masked
+      sentAt: Date,
+      error: String,
+    },
     feedback: {
       score: Number,
       notes: String,

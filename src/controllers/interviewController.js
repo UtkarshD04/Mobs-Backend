@@ -7,12 +7,31 @@ import Employee from '../models/Employee.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 import { syncApplicationStatusFromStage } from '../utils/applicationSync.js'
 import { logger } from '../config/logger.js'
+import CandidateUnlock from '../models/CandidateUnlock.js'
+import { sendInterviewEmail } from '../utils/interviewEmail.js'
 
 async function notifyCandidateEmployee(candidateId, payload) {
   const candidate = await Candidate.findById(candidateId).select('employee')
   if (!candidate?.employee) return
   const employee = await Employee.findById(candidate.employee)
   if (employee) await notifyEmployee(employee, payload)
+}
+
+// Emails the candidate about this interview and records how it went on the interview itself. Never throws:
+// a mail problem must not undo (or fail) the interview that was just saved.
+async function emailCandidate(kind, interview, req) {
+  try {
+    const candidate = await Candidate.findById(interview.candidate)
+    const [unlock, employee] = await Promise.all([
+      CandidateUnlock.findOne({ company: req.company._id, candidate: interview.candidate }),
+      candidate?.employee ? Employee.findById(candidate.employee).select('name email') : null,
+    ])
+    const result = await sendInterviewEmail({ kind, interview, candidate, employee, unlock, company: req.company, user: req.user })
+    interview.email = { kind, status: result.status, to: result.to, sentAt: result.sentAt ? new Date(result.sentAt) : undefined, error: result.error }
+    await interview.save()
+  } catch (err) {
+    logger.warn({ err }, 'Failed to email the candidate about the interview')
+  }
 }
 
 export const listInterviews = asyncHandler(async (req, res) => {
@@ -69,6 +88,9 @@ export const scheduleInterview = asyncHandler(async (req, res) => {
     }
   }
 
+  // Opt-in: only when the recruiter ticked "email the candidate".
+  if (req.body?.notifyByEmail === true) await emailCandidate('scheduled', interview, req)
+
   res.status(201).json(interview)
 })
 
@@ -89,6 +111,8 @@ export const rescheduleInterview = asyncHandler(async (req, res) => {
     body: `Your interview for ${interview.role} has been rescheduled to ${new Date(startsAt).toLocaleString('en-IN')}.`,
   })
 
+  if (req.body?.notifyByEmail === true) await emailCandidate('rescheduled', interview, req)
+
   res.json(interview)
 })
 
@@ -105,6 +129,8 @@ export const cancelInterview = asyncHandler(async (req, res) => {
     title: 'Interview cancelled',
     body: `Your interview for ${interview.role} has been cancelled.`,
   })
+
+  if (req.body?.notifyByEmail === true) await emailCandidate('cancelled', interview, req)
 
   res.json(interview)
 })
