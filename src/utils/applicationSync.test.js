@@ -18,13 +18,13 @@ describe('applicationStatusForStage', () => {
 })
 
 describe('rejection message', () => {
-  test('says how far it got and gives the employer\'s reason', () => {
-    const msg = STATUS_UPDATE_MESSAGES.rejected('Sales Executive', { reason: 'Did not clear the technical round', after: 'interview' })
+  test('says how far it got but never repeats the employer\'s own reason', () => {
+    const msg = STATUS_UPDATE_MESSAGES.rejected('Sales Executive', { reason: 'PRIVATE: did not clear the technical round', after: 'interview' })
     assert.match(msg, /not selected after the interview/)
-    assert.match(msg, /Reason: Did not clear the technical round/)
+    assert.doesNotMatch(msg, /PRIVATE|Reason:/)
   })
 
-  test('still reads fine without a reason', () => {
+  test('reads fine with no extra context', () => {
     assert.equal(STATUS_UPDATE_MESSAGES.rejected('Sales Executive'), 'Your application for Sales Executive was not selected this time.')
   })
 })

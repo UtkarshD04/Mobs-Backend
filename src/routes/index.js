@@ -52,6 +52,8 @@ import staffCompanyRoutes from './staffCompanyRoutes.js'
 import staffJobRoutes from './staffJobRoutes.js'
 import staffResumeRoutes from './staffResumeRoutes.js'
 import staffApplicationRoutes from './staffApplicationRoutes.js'
+import rejectionFeedbackRoutes from './rejectionFeedbackRoutes.js'
+import staffRejectionFeedbackRoutes from './staffRejectionFeedbackRoutes.js'
 import staffBatchRoutes from './staffBatchRoutes.js'
 import staffMockInterviewRoutes from './staffMockInterviewRoutes.js'
 import staffEmployeeRoutes from './staffEmployeeRoutes.js'
@@ -86,6 +88,7 @@ employerRoutes.use('/jobs', jobRoutes)
 employerRoutes.use('/team', teamRoutes)
 employerRoutes.use('/batches', batchRoutes)
 employerRoutes.use('/candidates', candidateRoutes)
+employerRoutes.use('/rejection-feedback', rejectionFeedbackRoutes)
 employerRoutes.use('/resume-search', employerResumeSearchRoutes)
 employerRoutes.use('/ai', aiRoutes)
 employerRoutes.use('/interviews', interviewRoutes)
@@ -132,6 +135,7 @@ staffRoutes.use('/companies', staffCompanyRoutes)
 staffRoutes.use('/jobs', staffJobRoutes)
 staffRoutes.use('/resumes', staffResumeRoutes)
 staffRoutes.use('/applications', staffApplicationRoutes)
+staffRoutes.use('/rejection-feedback', staffRejectionFeedbackRoutes)
 staffRoutes.use('/batches', staffBatchRoutes)
 staffRoutes.use('/mock-interviews', staffMockInterviewRoutes)
 staffRoutes.use('/employees', staffEmployeeRoutes)

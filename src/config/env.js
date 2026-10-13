@@ -18,6 +18,9 @@ export const env = {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  // When true, rejecting a candidate without structured feedback is refused by the API. Left off by default so
+  // older app builds that only send a free-text reason keep working until they are updated.
+  rejectionFeedbackRequired: process.env.REJECTION_FEEDBACK_REQUIRED === 'true',
   seedAdminEmail: process.env.SEED_ADMIN_EMAIL ?? 'admin@solacetech.dev',
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD ?? 'Passw0rd!123',
   seedCompanyName: process.env.SEED_COMPANY_NAME ?? 'Solace Technologies',

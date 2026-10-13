@@ -8,6 +8,7 @@ import Job from '../models/Job.js'
 import { publicJobFilter } from '../utils/jobQueryFilters.js'
 import { isReviewAccount } from '../utils/reviewLogin.js'
 import { FREE_APPLICATION_LIMIT } from '../config/premiumPlan.js'
+import { feedbackStatusByApplication } from './employeeFeedbackController.js'
 
 function fitScore(employeeSkills = [], jobSkills = []) {
   if (jobSkills.length === 0) return null
@@ -34,10 +35,10 @@ function forEmployee(application, isPremium) {
   const json = typeof application.toJSON === 'function' ? application.toJSON() : { ...application }
   json.statusHistory = (json.statusHistory ?? []).map(({ status, changedOn }) => (isPremium ? { status, changedOn } : { status }))
   json.historyLocked = !isPremium
-  if (json.status !== 'rejected') {
-    delete json.rejectionReason
-    delete json.rejectedAfter
-  }
+  // The employer’s own rejection wording is never sent to the candidate: they see only feedback a Mzobs reviewer
+  // approved (GET /applications/:id/feedback).
+  delete json.rejectionReason
+  delete json.rejectedAfter
   return json
 }
 
@@ -51,7 +52,9 @@ export const listApplications = asyncHandler(async (req, res) => {
     },
   })
   setPaginationHeaders(res, { page, limit, total })
-  res.json(data.map((a) => forEmployee(a, req.employee.isPremium)))
+  // Rejected applications carry a feedback label ('none' | 'pending' | 'available'), never the feedback itself.
+  const feedbackStatuses = await feedbackStatusByApplication(data)
+  res.json(data.map((a) => ({ ...forEmployee(a, req.employee.isPremium), feedbackStatus: feedbackStatuses.get(String(a._id)) ?? 'none' })))
 })
 
 export const applyToJob = asyncHandler(async (req, res) => {

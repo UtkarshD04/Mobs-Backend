@@ -12,6 +12,9 @@ import { hasActiveEmployerSubscription } from '../utils/employerSubscriptionAcce
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { logger } from '../config/logger.js'
 import { markApplicationViewed, syncApplicationStatusFromStage } from '../utils/applicationSync.js'
+import { env } from '../config/env.js'
+import { FEEDBACK_REASONS, toEmployerView, validateSubmission } from '../utils/rejectionFeedback.js'
+import { recordRejectionFeedback } from '../utils/rejectionFeedbackService.js'
 
 // A user@example.com -> u***@example.com style mask — enough to show the
 // applicant has a real, reachable email/phone without revealing it before
@@ -172,22 +175,37 @@ export const unlockCandidate = asyncHandler(async (req, res) => {
 })
 
 export const setCandidateStage = asyncHandler(async (req, res) => {
-  const { stage, rejectionReason } = req.body ?? {}
+  const { stage, rejectionReason, feedback: feedbackInput } = req.body ?? {}
   if (!stage) return res.status(400).json({ message: 'stage is required' })
+
+  // Rejecting takes structured feedback (stage reached + at least one reason). It is validated before anything
+  // is saved, so a bad submission can't leave the candidate rejected with no feedback record.
+  let feedbackValue = null
+  if (stage === 'rejected') {
+    if (feedbackInput !== undefined) {
+      const { value, errors } = validateSubmission(feedbackInput)
+      if (errors) return res.status(400).json({ message: 'Please fix the highlighted fields.', errors })
+      feedbackValue = value
+    } else if (env.rejectionFeedbackRequired) {
+      return res.status(400).json({ code: 'FEEDBACK_REQUIRED', message: 'Select at least one reason before rejecting this candidate.' })
+    }
+  }
 
   const candidate = await Candidate.findOne({ _id: req.params.id, company: req.company._id })
   if (!candidate) return res.status(404).json({ message: 'Candidate not found' })
 
-  // The candidate reads this in their application tracking, so a rejection can't go out without one.
+  // A rejection can't go out without a reason: structured feedback (validated above) or, for older clients, a few words of free text.
+  // Neither is shown to the candidate as written: they only ever see feedback a Mzobs reviewer approved.
   const reason = String(rejectionReason ?? '').trim()
-  if (stage === 'rejected' && reason.length < 5) {
+  if (stage === 'rejected' && !feedbackValue && reason.length < 5) {
     return res.status(400).json({ code: 'REJECTION_REASON_REQUIRED', message: 'Tell the candidate why they were not selected (a few words is enough).' })
   }
 
   const wasHired = candidate.stage === 'hired'
   const wasOffered = candidate.stage === 'offered'
   candidate.stage = stage
-  if (stage === 'rejected') candidate.rejectionReason = reason.slice(0, 500)
+  if (feedbackValue) candidate.rejectionReason = feedbackValue.reasons.map((code) => FEEDBACK_REASONS[code].label).join('; ')
+  else if (stage === 'rejected') candidate.rejectionReason = reason.slice(0, 500)
 
   await candidate.save()
 
@@ -212,7 +230,16 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
     await Batch.findByIdAndUpdate(candidate.batch, { $inc: { selected: -1 } })
   }
 
-  res.json(await redactList(req.company._id, candidate))
+  // Feedback only makes sense for a platform candidate who actually applied (there is no application page to
+  // show it on otherwise). The stage change is already saved, so a failure here is surfaced, not swallowed.
+  let feedback = null
+  if (feedbackValue && candidate.application && candidate.employee) {
+    const recorded = await recordRejectionFeedback({ candidate, userId: req.user._id, value: feedbackValue })
+    feedback = { ...toEmployerView(recorded.feedback), result: recorded.result }
+  }
+
+  const body = await redactList(req.company._id, candidate)
+  res.json(feedback ? { ...body, feedback } : body)
 })
 
 // GET /api/employer/candidates/:id/private-details — email + phone, only for
