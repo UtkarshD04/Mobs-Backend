@@ -13,6 +13,11 @@ function getTransporter() {
     port: env.smtp.port,
     secure: env.smtp.port === 465,
     auth: env.smtp.user ? { user: env.smtp.user, pass: env.smtp.pass } : undefined,
+    // nodemailer's defaults wait minutes on an unreachable host, which stalls the request that sent the
+    // mail (e.g. scheduling an interview) past the client's timeout. Fail fast instead.
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 12000,
   })
   return transporter
 }
