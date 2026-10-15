@@ -1,4 +1,5 @@
 import { env } from '../config/env.js'
+import { appleProductId } from './appleIap.js'
 
 // Server-side source of truth for what an employer actually pays — the
 // frontend only ever displays this, never computes it. GST_MODE=exclusive
@@ -31,6 +32,7 @@ function priceOne(planDef) {
     gstAmountPaise,
     totalAmountPaise, // what Razorpay actually charges
     currency: 'INR',
+    appleProductId: appleProductId(planCode), // iOS in-app purchase product (the app buys this instead of Razorpay)
     cvCredits,
     benefits: cvCredits > 0 ? [`${cvCredits} CV credits included`, ...benefits] : benefits,
   }

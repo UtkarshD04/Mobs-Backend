@@ -20,6 +20,11 @@ const AUDIENCES = {
   staff: { Model: StaffUser, notify: notifyStaff, label: 'staff member', searchFields: ['name', 'email'] },
 }
 
+// A broadcast is for people already using the platform — accounts created in
+// the last day (just downloaded/signed up) shouldn't get an announcement that
+// wasn't written for them.
+const NEW_ACCOUNT_BROADCAST_GRACE_MS = 24 * 60 * 60 * 1000
+
 export const listRecipients = asyncHandler(async (req, res) => {
   const { audience, search } = req.query
   const config = AUDIENCES[audience]
@@ -44,7 +49,9 @@ export const sendNotification = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'recipientIds is required unless broadcast is true' })
   }
 
-  const query = broadcast ? {} : { _id: { $in: recipientIds } }
+  const query = broadcast
+    ? { createdAt: { $lte: new Date(Date.now() - NEW_ACCOUNT_BROADCAST_GRACE_MS) } }
+    : { _id: { $in: recipientIds } }
   const recipients = await config.Model.find(query)
   await Promise.all(recipients.map((r) => config.notify(r, { category: 'system', title, body })))
 

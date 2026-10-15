@@ -5,6 +5,7 @@ import { getActiveCvCreditPlans, rupeesPerCredit, RUPEES_PER_CV_CREDIT } from '.
 import { getWalletBalance, activateCvCreditPurchase } from '../utils/creditWallet.js'
 import { findApplicableCoupon, computeDiscount, CouponError } from '../utils/coupon.js'
 import { env } from '../config/env.js'
+import { appleProductId } from '../utils/appleIap.js'
 import { logger } from '../config/logger.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
@@ -31,6 +32,7 @@ function serializePlan(plan) {
   return {
     id: plan.id ?? plan._id?.toString(),
     code: plan.code,
+    appleProductId: appleProductId(plan.code),
     name: plan.name,
     amountPaise: plan.amountPaise,
     amountRupees: Math.round(plan.amountPaise / 100),

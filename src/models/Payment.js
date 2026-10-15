@@ -25,6 +25,8 @@ const paymentSchema = new Schema(
     razorpaySignature: { type: String, default: null, select: false },
     amount: { type: Number, required: true }, // rupees, after any coupon discount
     currency: { type: String, default: 'INR' },
+    // 'apple' = iOS in-app purchase via RevenueCat; razorpayOrderId then holds `apple_<transactionId>` and razorpayPaymentId the Apple transaction id.
+    provider: { type: String, enum: ['razorpay', 'apple'], default: 'razorpay' },
     status: { type: String, enum: ['created', 'paid', 'failed'], default: 'created', index: true },
     receipt: { type: String, required: true },
     // Coupon applied at order-creation time, if any. `originalAmount` is the
