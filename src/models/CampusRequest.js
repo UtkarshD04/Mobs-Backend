@@ -20,12 +20,14 @@ const campusRequestSchema = new Schema(
     message: { type: String, trim: true, maxlength: 3000, default: '' },
     status: { type: String, enum: CAMPUS_REQUEST_STATUSES, default: 'pending' },
     notes: { type: String, trim: true, maxlength: 3000, default: '' },
+    campusCode: { type: String, trim: true, default: undefined },
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date },
   },
   { timestamps: true }
 )
 
+campusRequestSchema.index({ campusCode: 1 }, { unique: true, sparse: true })
 campusRequestSchema.index({ createdAt: -1 })
 campusRequestSchema.index({ status: 1, createdAt: -1 })
 

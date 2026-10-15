@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
+import { nextSequence } from '../models/Counter.js'
 import CampusRequest, { CAMPUS_REQUEST_STATUSES } from '../models/CampusRequest.js'
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -41,6 +42,8 @@ export const updateCampusRequest = asyncHandler(async (req, res) => {
   if (!request) return res.status(404).json({ message: 'Campus request not found' })
 
   if (status !== undefined) request.status = status
+  // Code is issued once, the first time a campus is verified (MZ26 + running number: MZ261, MZ262, ...).
+  if (request.status === 'verified' && !request.campusCode) request.campusCode = `MZ${String(new Date().getFullYear()).slice(-2)}${await nextSequence('campusCode')}`
   if (notes !== undefined) request.notes = notes
   request.reviewedBy = req.staff.name
   request.reviewedAt = new Date()
