@@ -23,6 +23,8 @@ const campusRequestSchema = new Schema(
     campusCode: { type: String, trim: true, default: undefined },
     reviewedBy: { type: String, default: '' },
     reviewedAt: { type: Date },
+    // campusCode is issued once, on first verify (MZOBS1201, MZOBS1202 …); see utils/campusCode.js.
+    codeIssuedOn: { type: Date },
   },
   { timestamps: true }
 )
