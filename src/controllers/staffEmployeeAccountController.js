@@ -27,10 +27,15 @@ export const listEmployees = asyncHandler(async (req, res) => {
 })
 
 // GET /api/staff/employees/export — every candidate account as a CSV
-// (not capped like the paginated list). Honors the same status/search filters.
+// (not capped like the paginated list). Honors the same status/search filters,
+// or exports only the candidates in `ids` (comma-separated) when given.
 export const exportEmployees = asyncHandler(async (req, res) => {
-  const { search, status } = req.query
+  const { search, status, ids } = req.query
   const query = {}
+  if (ids) {
+    const list = String(ids).split(',').filter((id) => /^[a-f\d]{24}$/i.test(id))
+    query._id = { $in: list }
+  }
   if (status && status !== 'all') query.status = status
   if (search) {
     const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
