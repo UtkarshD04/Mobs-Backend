@@ -4,8 +4,11 @@ import EmployerSubscription from '../models/EmployerSubscription.js'
 // applicant resumes right now". Never trusts anything the frontend sends —
 // always re-derives from the DB, and treats a past-expiry `active` row as
 // inactive even if no cron has flipped its status field yet.
+// A still-valid active plan wins over newer pending/failed rows, so an
+// upgrade checkout in progress (or abandoned) never locks the employer out.
 async function latestSubscription(companyId) {
-  return EmployerSubscription.findOne({ company: companyId }).sort({ createdAt: -1 })
+  const live = await EmployerSubscription.findOne({ company: companyId, status: 'active', expiresAt: { $gt: new Date() } }).sort({ createdAt: -1 })
+  return live ?? EmployerSubscription.findOne({ company: companyId }).sort({ createdAt: -1 })
 }
 
 function isCurrentlyActive(sub) {

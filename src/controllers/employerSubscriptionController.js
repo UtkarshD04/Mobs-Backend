@@ -143,12 +143,20 @@ export const previewSubscriptionCoupon = asyncHandler(async (req, res) => {
 // optional coupon code, which is itself re-validated and re-priced here
 // (never trusts the preview alone).
 export const createSubscriptionOrder = asyncHandler(async (req, res) => {
-  const { isActive } = await getEffectiveSubscription(req.company._id)
-  if (isActive) return res.status(409).json({ message: 'Your employer plan is already active' })
+  const { subscription: current, isActive } = await getEffectiveSubscription(req.company._id)
 
   const { planCode, couponCode } = req.body ?? {}
-  if (!getEmployerPlans().some((p) => p.planCode === planCode)) {
+  const tiers = getEmployerPlans()
+  if (!tiers.some((p) => p.planCode === planCode)) {
     return res.status(404).json({ message: 'This plan is not available' })
+  }
+  // An active plan can only be moved up to a higher tier.
+  if (isActive) {
+    const currentTier = tiers.find((p) => p.planCode === current.planCode)
+    const target = tiers.find((p) => p.planCode === planCode)
+    if (!currentTier || target.baseAmountPaise <= currentTier.baseAmountPaise) {
+      return res.status(409).json({ message: 'Your employer plan is already active' })
+    }
   }
   const pricing = getEmployerPlanPricing(planCode)
 

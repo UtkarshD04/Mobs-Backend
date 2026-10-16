@@ -24,6 +24,12 @@ export async function activateEmployerSubscription(subscription, payment) {
     subscription.razorpaySignature = payment.razorpaySignature ?? subscription.razorpaySignature
     await subscription.save()
 
+    // An upgrade replaces the plan it was bought on top of.
+    await EmployerSubscription.updateMany(
+      { company: subscription.company, status: 'active', _id: { $ne: subscription._id } },
+      { $set: { status: 'cancelled' } }
+    )
+
     await logActivity(subscription.company, `${subscription.planName} activated — valid until ${expiresAt.toLocaleDateString('en-IN')}`, 'green')
   }
 
