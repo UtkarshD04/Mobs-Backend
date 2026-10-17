@@ -49,6 +49,7 @@ import employeeMessageRoutes from './employeeMessageRoutes.js'
 import employeeSupportRoutes from './employeeSupportRoutes.js'
 import staffAuthRoutes from './staffAuthRoutes.js'
 import staffCompanyRoutes from './staffCompanyRoutes.js'
+import staffEmployerRoutes from './staffEmployerRoutes.js'
 import staffJobRoutes from './staffJobRoutes.js'
 import staffResumeRoutes from './staffResumeRoutes.js'
 import staffApplicationRoutes from './staffApplicationRoutes.js'
@@ -132,6 +133,7 @@ employeeRoutes.use('/premium-services', employeePremiumServiceRoutes)
 const staffRoutes = Router()
 staffRoutes.use('/auth', staffAuthRoutes)
 staffRoutes.use('/companies', staffCompanyRoutes)
+staffRoutes.use('/employers', staffEmployerRoutes)
 staffRoutes.use('/jobs', staffJobRoutes)
 staffRoutes.use('/resumes', staffResumeRoutes)
 staffRoutes.use('/applications', staffApplicationRoutes)

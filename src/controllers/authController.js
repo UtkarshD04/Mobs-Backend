@@ -134,11 +134,15 @@ export const checkGst = asyncHandler(async (req, res) => {
 
 export const signup = asyncHandler(async (req, res) => {
   const { companyName, name, email, phone, password, industry, size, website, hq, phoneToken } = req.body ?? {}
-  const required = { companyName, name, email, phone, password, industry, size }
+  const required = { companyName, name, email, phone, industry, size }
   if (Object.values(required).some((v) => typeof v !== 'string' || !v.trim())) {
     return res.status(400).json({ message: 'All fields are required to register your company' })
   }
-  if (password.length < 8) {
+  // Password is optional: registration is OTP-first, so the employer signs in
+  // with their verified mobile (phone-login) and can set a password later via
+  // "Forgot password". A password that is sent must still be a real one.
+  const hasPassword = typeof password === 'string' && password.length > 0
+  if (hasPassword && password.length < 8) {
     return res.status(400).json({ message: 'Password must be at least 8 characters' })
   }
   const { gst, error: gstError } = parseSignupGst(req.body, { required: env.gstVerification.required })
@@ -150,7 +154,9 @@ export const signup = asyncHandler(async (req, res) => {
   // employee-side signup and every other MSG91/Google/Razorpay/SMTP
   // integration here).
   const phoneVerified = typeof phoneToken === 'string' && checkPhoneToken(phoneToken, phone.trim())
-  if (env.msg91.authKey && !phoneVerified) {
+  // Without a password the verified mobile is the only way back in, so it is
+  // required then even where MSG91 isn't configured.
+  if ((env.msg91.authKey || !hasPassword) && !phoneVerified) {
     return res.status(400).json({ message: 'Please verify your mobile number via OTP before continuing' })
   }
 
@@ -172,7 +178,7 @@ export const signup = asyncHandler(async (req, res) => {
     gstResult
   )
 
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = hasPassword ? await bcrypt.hash(password, 10) : undefined
   const user = await User.create({
     company: company._id,
     name: name.trim(),
