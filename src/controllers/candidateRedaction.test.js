@@ -23,7 +23,7 @@ describe('redactCandidate — pre-unlock response never leaks private data', () 
   test('unlocked=false still exposes a masked contact preview, never the real value', () => {
     const out = redactCandidate(fakeCandidate(), false)
     assert.equal(out.contactPreview.email, 'j************@example.com')
-    assert.ok(out.contactPreview.phone.endsWith('3210'))
+    assert.equal(out.contactPreview.phone, '**********')
     assert.doesNotMatch(out.contactPreview.email, /jordan\.rivera/)
     assert.doesNotMatch(out.contactPreview.phone, /98765432/)
   })
@@ -49,8 +49,8 @@ describe('maskEmail / maskPhone', () => {
     assert.equal(maskEmail(null), null)
   })
 
-  test('maskPhone keeps only the last four digits', () => {
-    assert.equal(maskPhone('+91 98765 43210'), '********3210')
+  test('maskPhone hides every digit', () => {
+    assert.equal(maskPhone('+91 98765 43210'), '**********')
     assert.equal(maskPhone(''), null)
   })
 })

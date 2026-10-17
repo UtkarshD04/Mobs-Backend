@@ -28,11 +28,13 @@ export function maskEmail(email) {
   return `${user.slice(0, 1)}${'*'.repeat(Math.max(user.length - 1, 3))}@${domain}`
 }
 
+// Fully masked — not even the last digits are shown before the unlock. Capped
+// at 10 so a +91 prefix doesn't make the mask longer than the number itself.
 export function maskPhone(phone) {
   if (!phone) return null
   const digits = phone.replace(/\D/g, '')
-  if (digits.length <= 4) return '*'.repeat(digits.length)
-  return `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}`
+  if (!digits) return null
+  return '*'.repeat(Math.min(digits.length, 10))
 }
 
 // Resume, email and phone are private candidate data — they are stripped
