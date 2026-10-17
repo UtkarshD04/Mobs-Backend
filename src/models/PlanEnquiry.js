@@ -4,7 +4,7 @@ import { applyIdTransform } from '../utils/toJSON.js'
 export const PLAN_ENQUIRY_STATUSES = ['New', 'Contacted', 'Closed']
 export const PLAN_ENQUIRY_SOURCES = ['website', 'app']
 
-// A "Customize plan" request from an employer — someone who doesn't fit the fixed ₹999 / ₹1499 / ₹2199 tiers.
+// A "Customize plan" request from an employer — someone who doesn't fit the fixed ₹1499 / ₹1999 / ₹2999 tiers.
 // The Operations team calls them back from the Plan enquiries page.
 const planEnquirySchema = new Schema(
   {

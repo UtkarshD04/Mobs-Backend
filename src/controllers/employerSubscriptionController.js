@@ -26,7 +26,7 @@ async function priceEmployerPlanWithCoupon(pricing, couponCode) {
 }
 
 // GET /api/employer/subscription — current plan state plus every purchasable
-// tier's pricing, so the frontend never has to hardcode ₹999/₹1499/₹2199 or
+// tier's pricing, so the frontend never has to hardcode ₹1499/₹1999/₹2999 or
 // the GST math.
 export const getSubscription = asyncHandler(async (req, res) => {
   const { subscription, isActive } = await getEffectiveSubscription(req.company._id)

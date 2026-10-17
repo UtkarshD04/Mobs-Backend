@@ -158,27 +158,27 @@ export const env = {
     gstRatePercent: Number(process.env.EMPLOYER_ANNUAL_PLAN_GST_RATE ?? process.env.GST_RATE_PERCENT ?? 18),
     plans: [
       {
-        planCode: process.env.EMPLOYER_PLAN_BASIC_CODE ?? 'EMPLOYER_ANNUAL_999',
+        planCode: process.env.EMPLOYER_PLAN_BASIC_CODE ?? 'EMPLOYER_ANNUAL_1499',
         planName: process.env.EMPLOYER_PLAN_BASIC_NAME ?? 'MZOBS Employer Annual',
-        // Base price before tax, in paise. Default 99900 paise = ₹999.
-        amountPaise: Number(process.env.EMPLOYER_PLAN_BASIC_AMOUNT_PAISE ?? process.env.EMPLOYER_ANNUAL_PLAN_AMOUNT_PAISE ?? 99900),
+        // Base price before tax, in paise. Default 149900 paise = ₹1499.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_BASIC_AMOUNT_PAISE ?? process.env.EMPLOYER_ANNUAL_PLAN_AMOUNT_PAISE ?? 149900),
         // CV credits added to the company's wallet once, when the plan activates.
         cvCredits: Number(process.env.EMPLOYER_PLAN_BASIC_CV_CREDITS ?? 40),
         benefits: [],
       },
       {
-        planCode: process.env.EMPLOYER_PLAN_PLUS_CODE ?? 'EMPLOYER_ANNUAL_1499',
+        planCode: process.env.EMPLOYER_PLAN_PLUS_CODE ?? 'EMPLOYER_ANNUAL_1999',
         planName: process.env.EMPLOYER_PLAN_PLUS_NAME ?? 'MZOBS Employer Annual Plus',
-        // Default 149900 paise = ₹1499.
-        amountPaise: Number(process.env.EMPLOYER_PLAN_PLUS_AMOUNT_PAISE ?? 149900),
+        // Default 199900 paise = ₹1999.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_PLUS_AMOUNT_PAISE ?? 199900),
         cvCredits: Number(process.env.EMPLOYER_PLAN_PLUS_CV_CREDITS ?? 20),
         benefits: ['Enhanced candidate CVs'],
       },
       {
-        planCode: process.env.EMPLOYER_PLAN_PRO_CODE ?? 'EMPLOYER_ANNUAL_2199',
+        planCode: process.env.EMPLOYER_PLAN_PRO_CODE ?? 'EMPLOYER_ANNUAL_2999',
         planName: process.env.EMPLOYER_PLAN_PRO_NAME ?? 'MZOBS Employer Annual Pro',
-        // Default 219900 paise = ₹2199.
-        amountPaise: Number(process.env.EMPLOYER_PLAN_PRO_AMOUNT_PAISE ?? 219900),
+        // Default 299900 paise = ₹2999.
+        amountPaise: Number(process.env.EMPLOYER_PLAN_PRO_AMOUNT_PAISE ?? 299900),
         cvCredits: Number(process.env.EMPLOYER_PLAN_PRO_CV_CREDITS ?? 40),
         benefits: ['Enhanced candidate CVs'],
       },
