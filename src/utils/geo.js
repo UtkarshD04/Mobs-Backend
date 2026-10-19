@@ -22,6 +22,23 @@ export const CITY_COORDS = {
   indore: { lat: 22.7196, lng: 75.8577 },
   kochi: { lat: 9.9312, lng: 76.2673 },
   bhopal: { lat: 23.2599, lng: 77.4126 },
+  haridwar: { lat: 29.9457, lng: 78.1642 },
+  kozhikode: { lat: 11.2588, lng: 75.7804 },
+  tirupati: { lat: 13.6288, lng: 79.4192 },
+  salem: { lat: 11.6643, lng: 78.146 },
+  'navi-mumbai': { lat: 19.033, lng: 73.0297 },
+  gandhinagar: { lat: 23.2156, lng: 72.6369 },
+  cuttack: { lat: 20.4625, lng: 85.883 },
+  gaya: { lat: 24.7914, lng: 85.0002 },
+  jabalpur: { lat: 23.1815, lng: 79.9864 },
+  gwalior: { lat: 26.2183, lng: 78.1828 },
+  'greater-noida': { lat: 28.4744, lng: 77.504 },
+  sonipat: { lat: 28.9931, lng: 77.0151 },
+  panipat: { lat: 29.3909, lng: 76.9635 },
+  bhiwadi: { lat: 28.2104, lng: 76.8603 },
+  tiruppur: { lat: 11.1085, lng: 77.3411 },
+  hubballi: { lat: 15.3647, lng: 75.124 },
+  belagavi: { lat: 15.8497, lng: 74.4977 },
 }
 
 // Cities beyond the homepage's HOT_CITIES spotlight list — distance sorting only, so
@@ -89,8 +106,13 @@ export function isValidCoord(lat, lng) {
 // Every city with known coordinates (HOT_CITIES + EXTRA_CITIES), nearest-first to (lat, lng).
 export function citiesByDistance(lat, lng) {
   const known = [
-    ...HOT_CITIES.map((c) => ({ ...c, coords: CITY_COORDS[c.slug] })),
-    ...EXTRA_CITIES.map((c) => ({ ...c, coords: { lat: c.lat, lng: c.lng } })),
+    // A city promoted into HOT_CITIES keeps its EXTRA_CITIES coordinates (looked up by slug) and is
+    // not listed twice.
+    ...HOT_CITIES.map((c) => {
+      const extra = EXTRA_CITIES.find((e) => e.slug === c.slug)
+      return { ...c, coords: CITY_COORDS[c.slug] ?? (extra && { lat: extra.lat, lng: extra.lng }) }
+    }),
+    ...EXTRA_CITIES.filter((c) => !HOT_CITIES.some((h) => h.slug === c.slug)).map((c) => ({ ...c, coords: { lat: c.lat, lng: c.lng } })),
   ]
   return known
     .filter((c) => c.coords)
