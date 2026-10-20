@@ -5,7 +5,7 @@ import Employee from '../models/Employee.js'
 // A login for app-store reviewers (Google Play's "App access" instructions). A reviewer
 // can't receive an SMS or an email code on our behalf and isn't allowed to create accounts,
 // so one reserved mobile number accepts a fixed OTP instead, and its account is created
-// ready to use: verified resume, premium, nothing to pay for.
+// ready to use: verified resume and (unless REVIEW_LOGIN_PREMIUM=false) premium.
 //
 // It is OFF unless BOTH REVIEW_LOGIN_PHONE (10-digit Indian mobile) and REVIEW_LOGIN_OTP
 // (6 digits) are set. Only that one number is affected; every other number still goes through
@@ -58,9 +58,13 @@ export async function ensureReviewAccount() {
   employee.resume.uploadedOn = employee.resume.uploadedOn ?? now
   employee.resume.verifiedOn = employee.resume.verifiedOn ?? now
   employee.profileCompletedAt = employee.profileCompletedAt ?? now
-  employee.subscription.status = 'paid'
-  employee.subscription.amount = 0
-  employee.subscription.paidOn = employee.subscription.paidOn ?? now
+  // With REVIEW_LOGIN_PREMIUM=false the plan is left alone: a new account starts on Basic and a
+  // reviewer who buys Premium keeps it across logins.
+  if (env.reviewLogin.premium) {
+    employee.subscription.status = 'paid'
+    employee.subscription.amount = 0
+    employee.subscription.paidOn = employee.subscription.paidOn ?? now
+  }
   await employee.save()
   return employee
 }

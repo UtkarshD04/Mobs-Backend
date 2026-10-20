@@ -11,6 +11,7 @@ import {
   confirmGuestMockSubscriptionPayment,
   previewCoupon,
   downloadSubscriptionInvoice,
+  verifyApplePurchase,
 } from '../controllers/employeeSubscriptionController.js'
 import { getPlan } from '../controllers/premiumServiceController.js'
 
@@ -28,6 +29,7 @@ router.get('/', requireEmployeeAuth, getSubscription)
 router.get('/invoice', requireEmployeeAuth, downloadSubscriptionInvoice)
 router.post('/order', requireEmployeeAuth, paymentLimiter, createSubscriptionOrder)
 router.post('/verify', requireEmployeeAuth, paymentLimiter, verifySubscriptionPayment)
+router.post('/apple', requireEmployeeAuth, paymentLimiter, verifyApplePurchase)
 router.post('/mock-confirm', requireEmployeeAuth, paymentLimiter, confirmMockSubscriptionPayment)
 
 // Guest checkout — no account exists yet, used by the marketing site's

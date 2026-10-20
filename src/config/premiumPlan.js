@@ -7,6 +7,11 @@
 // One-time, lifetime fee (tax-inclusive — see the GST note in env.js).
 export const PREMIUM_FEE = 499
 
+// App Store product (non-consumable) the iOS app sells Premium as. Create exactly this id in
+// App Store Connect; the app sends the signed purchase to POST /subscription/apple, which
+// verifies it with Apple's root certificate and grants Premium (utils/appleTransaction.js).
+export const PREMIUM_APPLE_PRODUCT_ID = 'com.mzobs.app.premium_lifetime'
+
 // Lifetime cap on applications for Basic accounts. Withdrawn applications
 // still count (see employeeApplicationController.js).
 export const FREE_APPLICATION_LIMIT = 10
@@ -107,7 +112,7 @@ export const PLAN_FEATURE_GROUPS = [
 export function publicPlan() {
   return {
     basic: { name: 'Mzobs Basic', price: 0, applicationLimit: FREE_APPLICATION_LIMIT },
-    premium: { name: 'Mzobs Premium', price: PREMIUM_FEE, currency: 'INR', billing: 'one_time' },
+    premium: { name: 'Mzobs Premium', price: PREMIUM_FEE, currency: 'INR', billing: 'one_time', appleProductId: PREMIUM_APPLE_PRODUCT_ID },
     groups: PLAN_FEATURE_GROUPS,
     services: PREMIUM_SERVICES,
   }

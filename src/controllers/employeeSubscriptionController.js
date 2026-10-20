@@ -8,7 +8,9 @@ import Payment from '../models/Payment.js'
 import { findApplicableCoupon, computeDiscount, incrementCouponUsage, CouponError } from '../utils/coupon.js'
 import { streamSubscriptionInvoice } from '../utils/invoicePdf.js'
 
-import { PREMIUM_FEE as DEFAULT_FEE } from '../config/premiumPlan.js'
+import { PREMIUM_FEE as DEFAULT_FEE, PREMIUM_APPLE_PRODUCT_ID } from '../config/premiumPlan.js'
+import { verifyAppleTransaction } from '../utils/appleTransaction.js'
+import { grantEmployeePremium } from '../utils/appleIap.js'
 
 // Looks up and prices a coupon against the fixed subscription fee. Returns
 // null (no coupon requested) or `{ coupon, discountAmount, amount }` with
@@ -355,4 +357,33 @@ export const confirmGuestMockSubscriptionPayment = asyncHandler(async (req, res)
   if (error) return res.status(error).json({ message })
 
   res.json({ paymentOrderId: payment.razorpayOrderId })
+})
+
+// POST /api/employee/subscription/apple — iOS in-app purchase of Premium. The app sends the
+// signed transaction (JWS) StoreKit gave it after the purchase; it is verified against Apple's
+// root certificate, so nothing the client says about the price or product is trusted. Sandbox
+// transactions are accepted too (App Review and TestFlight buy in the sandbox).
+export const verifyApplePurchase = asyncHandler(async (req, res) => {
+  let tx
+  try {
+    tx = verifyAppleTransaction(req.body?.signedTransaction)
+  } catch (err) {
+    logger.warn({ employeeId: req.employee._id.toString(), reason: err.message }, 'Apple transaction rejected')
+    return res.status(400).json({ message: 'Could not verify this purchase with the App Store.' })
+  }
+  if (tx.bundleId !== env.appleClientId || tx.productId !== PREMIUM_APPLE_PRODUCT_ID) {
+    return res.status(400).json({ message: 'This purchase is not for Mzobs Premium.' })
+  }
+  if (tx.revocationDate) return res.status(400).json({ message: 'This purchase was refunded.' })
+
+  const employee = req.employee
+  const granted = await grantEmployeePremium(employee, {
+    originalTransactionId: tx.originalTransactionId ?? tx.transactionId,
+    // StoreKit reports the price in thousandths of the currency.
+    price: typeof tx.price === 'number' ? tx.price / 1000 : undefined,
+    currency: tx.currency,
+  })
+  if (!granted) return res.status(409).json({ message: 'This purchase is already linked to another Mzobs account.' })
+
+  res.json(employee.subscription)
 })
