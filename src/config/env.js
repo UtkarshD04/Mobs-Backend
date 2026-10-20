@@ -75,6 +75,9 @@ export const env = {
   reviewLogin: {
     phone: process.env.REVIEW_LOGIN_PHONE ?? '',
     otp: process.env.REVIEW_LOGIN_OTP ?? '',
+    // The review account is created with Premium unless this is "false". Set it to false for
+    // App Store review so the reviewer sees (and can test) the Premium purchase button.
+    premium: process.env.REVIEW_LOGIN_PREMIUM !== 'false',
   },
   // MSG91 OTP API — https://control.msg91.com. Left blank, mobile OTP
   // verification fails cleanly with a 503 instead of crashing (same

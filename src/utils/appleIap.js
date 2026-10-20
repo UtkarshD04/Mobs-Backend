@@ -4,6 +4,7 @@ import { activateCvCreditPurchase } from './creditWallet.js'
 import { getEmployerPlans } from './employerPlanPricing.js'
 import { logger } from '../config/logger.js'
 import Company from '../models/Company.js'
+import { PREMIUM_FEE } from '../config/premiumPlan.js'
 import CreditPlan from '../models/CreditPlan.js'
 import EmployerSubscription from '../models/EmployerSubscription.js'
 import Payment from '../models/Payment.js'
@@ -75,6 +76,38 @@ export async function processApplePurchase({ appUserId, productId, transactionId
     if (claimed) await activateEmployerSubscription(subscription, claimed)
   }
   return { granted: 'plan', planCode: plan.planCode }
+}
+
+// Grants a candidate Mzobs Premium for a verified App Store purchase, exactly once per Apple
+// purchase (the Payment row's unique `apple_<originalTransactionId>` is the claim). A restore
+// on a new phone reuses the same original transaction, so it is granted again to the same
+// employee but never to a second account. Returns false when it is already claimed by another.
+export async function grantEmployeePremium(employee, { originalTransactionId, price, currency }) {
+  const orderId = `apple_${originalTransactionId}`
+  let payment = await Payment.findOne({ razorpayOrderId: orderId })
+  if (payment && String(payment.employee) !== String(employee._id)) return false
+  if (!payment) {
+    payment = await Payment.create({
+      purpose: 'employee_subscription',
+      employee: employee._id,
+      provider: 'apple',
+      razorpayOrderId: orderId,
+      razorpayPaymentId: String(originalTransactionId),
+      amount: price ?? PREMIUM_FEE,
+      currency: currency || 'INR',
+      status: 'paid',
+      receipt: orderId,
+      paidAt: new Date(),
+    }).catch(dupOr)
+    // Lost a race with a second delivery of the same purchase: it belongs to whoever won.
+    payment ??= await Payment.findOne({ razorpayOrderId: orderId })
+    if (String(payment?.employee) !== String(employee._id)) return false
+  }
+  if (employee.subscription?.status !== 'paid') {
+    employee.subscription = { status: 'paid', amount: payment.amount, paidOn: payment.paidAt ?? new Date() }
+    await employee.save()
+  }
+  return true
 }
 
 // Two deliveries of the same transaction can race on the unique orderId.
