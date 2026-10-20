@@ -2,6 +2,7 @@ import { Router } from 'express'
 import authRoutes from './authRoutes.js'
 import companyRoutes from './companyRoutes.js'
 import jobRoutes from './jobRoutes.js'
+import geoRoutes from './geoRoutes.js'
 import teamRoutes from './teamRoutes.js'
 import batchRoutes from './batchRoutes.js'
 import candidateRoutes from './candidateRoutes.js'
@@ -86,6 +87,7 @@ employerRoutes.use(employerAccessGate)
 employerRoutes.use('/auth', authRoutes)
 employerRoutes.use('/company', companyRoutes)
 employerRoutes.use('/jobs', jobRoutes)
+employerRoutes.use('/geo', geoRoutes)
 employerRoutes.use('/team', teamRoutes)
 employerRoutes.use('/batches', batchRoutes)
 employerRoutes.use('/candidates', candidateRoutes)

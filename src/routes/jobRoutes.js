@@ -4,6 +4,7 @@ import { requireActiveSubscription } from '../middleware/requireActiveSubscripti
 import { paymentLimiter } from '../middleware/rateLimit.js'
 import {
   listJobs,
+  jobLocationFacets,
   getJob,
   createJob,
   updateJob,
@@ -20,6 +21,7 @@ const router = Router()
 router.use(requireAuth)
 
 router.get('/', listJobs)
+router.get('/location-facets', jobLocationFacets)
 // Creating and publishing both require an active employer plan — read-only
 // access to jobs already posted stays available regardless of subscription
 // state.

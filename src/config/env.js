@@ -122,6 +122,16 @@ export const env = {
     // (still checked when given) and nothing is gated on it.
     required: process.env.GST_VERIFICATION_REQUIRED === 'true',
   },
+  // Geocoding proxy for the employer dashboard's location filters (utils/geocoder.js). Nominatim-
+  // compatible; the key (if any) stays server-side. GEOCODER_ENABLED=false answers 503.
+  geocoder: {
+    enabled: process.env.GEOCODER_ENABLED !== 'false',
+    baseUrl: (process.env.GEOCODER_BASE_URL || 'https://nominatim.openstreetmap.org').replace(/\/$/, ''),
+    apiKey: process.env.GEOCODER_API_KEY ?? '',
+    userAgent: process.env.GEOCODER_USER_AGENT || 'Mzobs-Employer/1.0 (contact: hello@mzobs.com)',
+    minGapMs: Number(process.env.GEOCODER_MIN_GAP_MS ?? 1100) || 1100,
+    pincodeApiUrl: (process.env.PINCODE_API_URL || 'https://api.postalpincode.in/pincode').replace(/\/$/, ''),
+  },
   // AWS S3 for private candidate file storage (resumes). Region defaults to
   // Mumbai since that's where the bucket lives. Left blank, upload/download
   // endpoints fail cleanly with a 503 instead of crashing (same no-op

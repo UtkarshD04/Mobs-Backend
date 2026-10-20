@@ -7,6 +7,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import { getRazorpayClient, isRazorpayConfigured } from '../config/razorpay.js'
 import { env } from '../config/env.js'
 import { logger } from '../config/logger.js'
+import { sanitizeLocationDetails, parseLocationFilters, buildGeoPipeline, shapeGeoRow } from '../utils/jobLocation.js'
 import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Payment from '../models/Payment.js'
@@ -53,9 +54,39 @@ export const listJobs = asyncHandler(async (req, res) => {
     query.$or = [{ title: regex }, { department: regex }, { location: regex }]
   }
 
+  // Optional hierarchical / radius location filters (state, city, locality, pincode, lat+lng+radius).
+  // Absent params leave the query — and the response — exactly as before.
+  const loc = parseLocationFilters(req.query)
+  if (loc.error) return res.status(400).json({ message: loc.error })
+  if (loc.clauses.length) query.$and = loc.clauses
+
+  if (loc.geo) {
+    const { page, limit, skip } = paginationParams(req)
+    const [result] = await Job.aggregate(buildGeoPipeline(query, loc.geo, { skip, limit }))
+    const total = result.total[0]?.n ?? 0
+    setPaginationHeaders(res, { page, limit, total })
+    return res.json(result.data.map(shapeGeoRow))
+  }
+
   const { data, page, limit, total } = await paginate(Job, query, paginationParams(req), { sort: { updatedOn: -1 } })
   setPaginationHeaders(res, { page, limit, total })
   res.json(data)
+})
+
+// Distinct state / city / locality values across this company's jobs — real options for the
+// dashboard's location dropdowns (nothing invented; legacy jobs without details just don't appear).
+export const jobLocationFacets = asyncHandler(async (req, res) => {
+  const rows = await Job.aggregate([
+    { $match: { company: req.company._id, 'locationDetails.state': { $exists: true } } },
+    {
+      $group: {
+        _id: { state: '$locationDetails.state', city: '$locationDetails.city', locality: '$locationDetails.locality' },
+        count: { $sum: 1 },
+      },
+    },
+    { $limit: 1000 },
+  ])
+  res.json(rows.map((r) => ({ state: r._id.state ?? '', city: r._id.city ?? '', locality: r._id.locality ?? '', count: r.count })))
 })
 
 export const getJob = asyncHandler(async (req, res) => {
@@ -66,6 +97,9 @@ export const getJob = asyncHandler(async (req, res) => {
 
 export const createJob = asyncHandler(async (req, res) => {
   const input = pickInput(req.body)
+  const loc = sanitizeLocationDetails(req.body.locationDetails)
+  if (loc.error) return res.status(400).json({ message: loc.error })
+  if (loc.value) input.locationDetails = loc.value
   const submitted = req.body.status === 'pending_review'
   const now = new Date()
 
@@ -99,7 +133,11 @@ export const updateJob = asyncHandler(async (req, res) => {
   if (!job) return res.status(404).json({ message: 'Job not found' })
 
   const input = pickInput(req.body)
+  const loc = sanitizeLocationDetails(req.body.locationDetails)
+  if (loc.error) return res.status(400).json({ message: loc.error })
   Object.assign(job, input)
+  if (loc.value) job.locationDetails = loc.value
+  else if (loc.value === null) job.locationDetails = undefined
   if (input.vacancies !== undefined) {
     job.feeTotal = feeFor(input.vacancies)
     job.resumesPromised = resumesFor(input.vacancies)
@@ -305,6 +343,7 @@ export const duplicateJob = asyncHandler(async (req, res) => {
     salaryMax: src.salaryMax,
     vacancies: src.vacancies,
     location: src.location,
+    locationDetails: src.locationDetails ?? undefined,
     workMode: src.workMode,
     skills: src.skills,
     track: src.track,

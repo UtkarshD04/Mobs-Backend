@@ -147,3 +147,14 @@ export const candidateFeedbackLimiter = rateLimit({
   message: { message: 'Too many requests. Please try again later.' },
   store: makeStore('rl:candidate-feedback:'),
 })
+
+// Location autocomplete proxies a third-party geocoder with its own usage policy —
+// capped per IP so one dashboard can't burn the shared upstream quota.
+export const geoLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many location searches. Please slow down.' },
+  store: makeStore('rl:geo:'),
+})

@@ -20,6 +20,31 @@ const jobSchema = new Schema(
     vacancies: { type: Number, required: true, min: 1 },
     location: { type: String, required: true },
     workMode: { type: String, enum: ['On-site', 'Hybrid', 'Remote'], required: true },
+    // Optional structured/geocoded companion to the free-text `location` above (which stays
+    // the source of truth for legacy jobs). `geo` is a GeoJSON Point [lng, lat]; `accuracy`
+    // is 'precise' only for a map-pinned / device-read point, never for a geocoded address.
+    locationDetails: {
+      type: new Schema(
+        {
+          country: String,
+          state: String,
+          city: String,
+          locality: String,
+          landmark: String,
+          pincode: String,
+          formattedAddress: String,
+          originalAddress: String,
+          geo: {
+            type: { type: String, enum: ['Point'] },
+            coordinates: { type: [Number], default: undefined },
+          },
+          accuracy: { type: String, enum: ['precise', 'approximate'] },
+          source: { type: String, enum: ['map_pin', 'device_location', 'geocoded_address'] },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     skills: { type: [String], default: [] },
     // Matches Employee.skillTrack.key — powers the employee-facing "My track" filter.
     track: { type: String, enum: ['analytics', 'design', 'sales', 'marketing', 'hr', 'support', 'tech', 'ops', ''], default: '' },
@@ -60,6 +85,11 @@ jobSchema.index({ visibleToCandidates: 1, status: 1, postedOn: -1 })
 jobSchema.index({ visibleToCandidates: 1, status: 1, workMode: 1 })
 jobSchema.index({ visibleToCandidates: 1, status: 1, track: 1 })
 jobSchema.index({ visibleToCandidates: 1, status: 1, instantHiring: 1 })
+
+// Employer-dashboard location filters: radius search ($geoNear needs this) and the
+// company-scoped state/city drill-down.
+jobSchema.index({ 'locationDetails.geo': '2dsphere' })
+jobSchema.index({ company: 1, 'locationDetails.state': 1, 'locationDetails.city': 1 })
 
 applyIdTransform(jobSchema)
 
