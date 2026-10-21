@@ -9,6 +9,22 @@ export const env = {
   isProduction: process.env.NODE_ENV === 'production',
   port: Number(process.env.PORT ?? 4000),
   mongoUri: required('MONGO_URI'),
+  // Scaling knobs — every default keeps the old single-process behaviour.
+  // WEB_CONCURRENCY: node-cluster workers per container (number, or "auto" = one per CPU).
+  // Leave unset under PM2 cluster mode (ecosystem.config.cjs), which forks its own workers.
+  webConcurrency: process.env.WEB_CONCURRENCY ?? '',
+  // Total Mongo connections ≈ workers/replicas * this — keep it under the Atlas tier's limit.
+  mongoMaxPoolSize: Number(process.env.MONGO_MAX_POOL_SIZE ?? 10) || 10,
+  mongoMinPoolSize: Number(process.env.MONGO_MIN_POOL_SIZE ?? 0) || 0,
+  // Keep-alive must outlive the reverse proxy's idle timeout, or the proxy reuses a socket
+  // we just closed and the client sees a random 502.
+  keepAliveTimeoutMs: Number(process.env.KEEP_ALIVE_TIMEOUT_MS ?? 65000) || 65000,
+  requestTimeoutMs: Number(process.env.REQUEST_TIMEOUT_MS ?? 120000) || 120000,
+  // How long a draining instance waits for in-flight requests before closing them.
+  shutdownGraceMs: Number(process.env.SHUTDOWN_GRACE_MS ?? 10000) || 10000,
+  // Load shedding: above this event-loop delay (ms, p99) the instance answers 503 + Retry-After
+  // so the load balancer retries elsewhere. 0 = off.
+  maxEventLoopLagMs: Number(process.env.MAX_EVENT_LOOP_LAG_MS ?? 0) || 0,
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
   // Job-seeker and employer (mobile app) sessions stay signed in for months; staff keep the short one.

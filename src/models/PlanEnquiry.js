@@ -12,6 +12,7 @@ const planEnquirySchema = new Schema(
     companyName: { type: String, required: true, trim: true, maxlength: 200 },
     phone: { type: String, required: true, trim: true, maxlength: 20 },
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: 200 },
+    employeesNeeded: { type: Number, min: 1, max: 100000 }, // how many employees they want to hire (older enquiries have none)
     source: { type: String, enum: PLAN_ENQUIRY_SOURCES, default: 'website' },
     status: { type: String, enum: PLAN_ENQUIRY_STATUSES, default: 'New' },
     notes: { type: String, trim: true, maxlength: 3000, default: '' },

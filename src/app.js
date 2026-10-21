@@ -6,6 +6,10 @@ import mongoSanitize from 'express-mongo-sanitize'
 import pinoHttp from 'pino-http'
 import { env } from './config/env.js'
 import { logger } from './config/logger.js'
+import mongoose from 'mongoose'
+import { lifecycle } from './config/lifecycle.js'
+import { getRedisClient, isRedisConfigured } from './config/redis.js'
+import { loadShed } from './middleware/loadShed.js'
 import { apiLimiter } from './middleware/rateLimit.js'
 import routes from './routes/index.js'
 import fileAccessRoutes from './routes/fileAccessRoutes.js'
@@ -44,6 +48,33 @@ if (env.isProduction) {
   })
 }
 
+// Lets you see which instance/worker answered (verify the load balancer is spreading traffic).
+const instanceId = `${process.env.HOSTNAME ?? 'local'}:${process.pid}`
+app.use((req, res, next) => {
+  res.set('X-Instance', instanceId)
+  next()
+})
+
+// Liveness + readiness are registered before everything else so probes stay cheap and
+// are never rate-limited, logged or shed.
+app.get('/health', (req, res) => res.json({ status: 'ok' }))
+// Readiness: 503 while draining for shutdown or when a dependency is down, so the load
+// balancer stops routing here without restarting a process that is merely waiting on Mongo.
+app.get('/ready', async (req, res) => {
+  if (lifecycle.draining) return res.status(503).json({ status: 'draining' })
+  const checks = { mongo: mongoose.connection.readyState === 1 }
+  if (isRedisConfigured()) {
+    try {
+      checks.redis = (await getRedisClient().ping()) === 'PONG'
+    } catch {
+      checks.redis = false
+    }
+  }
+  const ready = Object.values(checks).every(Boolean)
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'degraded', checks })
+})
+
+app.use(loadShed)
 app.use(helmet())
 app.use(compression())
 // `exposedHeaders` is required for cross-origin callers (every frontend here
@@ -58,7 +89,7 @@ app.use(cors({ origin: env.corsOrigin, exposedHeaders: ['X-Total-Count', 'X-Page
 app.use(
   pinoHttp({
     logger,
-    autoLogging: { ignore: (req) => req.url === '/health' },
+    autoLogging: { ignore: (req) => req.url === '/health' || req.url === '/ready' },
     serializers: {
       req: (req) => ({ method: req.method, url: req.url }),
       res: (res) => ({ statusCode: res.statusCode }),
@@ -76,7 +107,6 @@ app.post('/api/webhooks/revenuecat', express.json({ limit: '1mb' }), revenueCatW
 app.use(express.json({ limit: '1mb' }))
 app.use(mongoSanitize())
 
-app.get('/health', (req, res) => res.json({ status: 'ok' }))
 app.get('/mobile/google-callback', googleMobileCallback)
 
 // Every resume (S3-backed or a pre-migration legacy local file) is only

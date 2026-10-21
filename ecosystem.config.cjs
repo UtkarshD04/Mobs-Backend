@@ -21,8 +21,8 @@ module.exports = {
       // the host — cluster mode means the restart is invisible to traffic.
       max_memory_restart: '400M',
       // Give in-flight requests a chance to finish before a reload kills
-      // the old worker (matches the SIGTERM handling in server.js).
-      kill_timeout: 5000,
+      // the old worker (must exceed SHUTDOWN_GRACE_MS in server.js).
+      kill_timeout: 15000,
       wait_ready: false,
     },
   ],

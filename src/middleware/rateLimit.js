@@ -6,6 +6,10 @@ import { getRedisClient, isRedisConfigured } from '../config/redis.js'
 // REDIS_URL is set. Falls back to express-rate-limit's own in-memory store
 // (correct for a single instance) when it isn't — same "blank = no-op"
 // pattern as SMTP/VAPID in env.js.
+// Shared by every limiter. passOnStoreError: if Redis hiccups, let the request through
+// instead of turning a cache outage into a full API outage.
+const base = { standardHeaders: true, legacyHeaders: false, passOnStoreError: true }
+
 function makeStore(prefix) {
   if (!isRedisConfigured()) return undefined
   const client = getRedisClient()
@@ -18,8 +22,7 @@ function makeStore(prefix) {
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many attempts. Please try again later.' },
   store: makeStore('rl:auth:'),
 })
@@ -33,8 +36,7 @@ export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
   skip: (req) => PUSH_PATH.test(req.path),
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many requests. Please slow down.' },
   store: makeStore('rl:api:'),
 })
@@ -42,8 +44,7 @@ export const apiLimiter = rateLimit({
 export const pushLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many requests. Please slow down.' },
   store: makeStore('rl:push:'),
 })
@@ -53,8 +54,7 @@ export const pushLimiter = rateLimit({
 export const emailOtpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many code requests. Please try again in a few minutes.' },
   store: makeStore('rl:email-otp:'),
 })
@@ -64,8 +64,7 @@ export const emailOtpLimiter = rateLimit({
 export const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many payment attempts. Please try again later.' },
   store: makeStore('rl:payment:'),
 })
@@ -76,8 +75,7 @@ export const paymentLimiter = rateLimit({
 export const unlockLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many unlock requests. Please slow down and try again shortly.' },
   store: makeStore('rl:unlock:'),
 })
@@ -87,8 +85,7 @@ export const unlockLimiter = rateLimit({
 export const outreachLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 40,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many messages sent. Please slow down and try again shortly.' },
   store: makeStore('rl:outreach:'),
 })
@@ -100,8 +97,7 @@ export const gstVerifyLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 5,
   keyGenerator: (req) => `company:${req.company._id}`,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { code: 'RATE_LIMITED', message: 'Too many GSTIN verification attempts. Please try again in an hour.' },
   store: makeStore('rl:gst-verify:'),
 })
@@ -111,8 +107,7 @@ export const gstVerifyLimiter = rateLimit({
 export const gstSignupCheckLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { code: 'RATE_LIMITED', message: 'Too many GSTIN checks. Please try again in an hour.' },
   store: makeStore('rl:gst-signup-check:'),
 })
@@ -121,8 +116,7 @@ export const gstSignupCheckLimiter = rateLimit({
 export const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many AI searches. Please slow down and try again shortly.' },
   store: makeStore('rl:ai:'),
 })
@@ -132,8 +126,7 @@ export const aiLimiter = rateLimit({
 export const feedbackActionLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many actions. Please slow down.' },
   store: makeStore('rl:feedback-action:'),
 })
@@ -142,8 +135,7 @@ export const feedbackActionLimiter = rateLimit({
 export const candidateFeedbackLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
+  ...base,
   message: { message: 'Too many requests. Please try again later.' },
   store: makeStore('rl:candidate-feedback:'),
 })
