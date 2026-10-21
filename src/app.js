@@ -16,7 +16,6 @@ import fileAccessRoutes from './routes/fileAccessRoutes.js'
 import { notFound } from './middleware/notFound.js'
 import { errorHandler } from './middleware/errorHandler.js'
 import { razorpayWebhook } from './controllers/paymentWebhookController.js'
-import { revenueCatWebhook } from './controllers/revenueCatWebhookController.js'
 import { googleMobileCallback } from './controllers/googleBridgeController.js'
 
 export const app = express()
@@ -102,7 +101,6 @@ app.use(
 // global express.json() below, which would otherwise consume the stream.
 app.post('/api/webhooks/razorpay', express.raw({ type: 'application/json', limit: '1mb' }), razorpayWebhook)
 
-app.post('/api/webhooks/revenuecat', express.json({ limit: '1mb' }), revenueCatWebhook)
 
 app.use(express.json({ limit: '1mb' }))
 app.use(mongoSanitize())

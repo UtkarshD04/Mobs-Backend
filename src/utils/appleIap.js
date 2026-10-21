@@ -1,5 +1,4 @@
-import { Types } from 'mongoose'
-import { activateEmployerSubscription } from './activateEmployerSubscription.js'
+import { activateEmployerSubscription, ONE_YEAR_MS } from './activateEmployerSubscription.js'
 import { activateCvCreditPurchase } from './creditWallet.js'
 import { getEmployerPlans } from './employerPlanPricing.js'
 import { logger } from '../config/logger.js'
@@ -12,7 +11,7 @@ import Payment from '../models/Payment.js'
 const PRODUCT_PREFIX = 'com.mzobs.employer.'
 
 // Product ids are derived from the plan / pack code, so nothing extra has to be
-// configured per plan: create these exact ids in App Store Connect + RevenueCat.
+// configured per plan: create these exact ids in App Store Connect.
 export const appleProductId = (code) => `${PRODUCT_PREFIX}${String(code).toLowerCase()}`
 
 async function resolveProduct(productId) {
@@ -24,13 +23,14 @@ async function resolveProduct(productId) {
   return pack ? { kind: 'credits', pack } : null
 }
 
-// Grants what an App Store purchase paid for, exactly once per Apple transaction.
+// Grants what an App Store purchase paid for, exactly once per Apple transaction. The caller
+// has already verified the signed transaction (utils/appleTransaction.js) and authenticated the
+// company, so `productId`, `transactionId` and `price` are Apple's, not the client's.
 // The Payment row (unique `apple_<transactionId>`) is the claim; its 'created' ->
 // 'paid' flip lives inside the activate* helpers, so a webhook retry after a crash
 // finishes the grant instead of skipping it or doing it twice.
-export async function processApplePurchase({ appUserId, productId, transactionId, price, currency }) {
-  if (!appUserId || !Types.ObjectId.isValid(appUserId)) return { ignored: 'not a company user id' }
-  const company = await Company.findById(appUserId).select('_id')
+export async function processApplePurchase({ companyId, productId, transactionId, purchaseDate, price, currency }) {
+  const company = await Company.findById(companyId).select('_id')
   if (!company) return { ignored: 'unknown company' }
 
   const product = await resolveProduct(productId)
@@ -55,6 +55,8 @@ export async function processApplePurchase({ appUserId, productId, transactionId
   }
 
   const { plan } = product
+  // A restore replays old transactions; one that was never delivered and is now past its year must not buy a fresh year.
+  if (!payment && purchaseDate && Date.now() - Number(purchaseDate) > ONE_YEAR_MS) return { ignored: 'plan purchase has expired' }
   let subscription = payment?.employerSubscription ? await EmployerSubscription.findById(payment.employerSubscription) : null
   if (!subscription) {
     subscription = await EmployerSubscription.create({

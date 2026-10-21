@@ -46,8 +46,6 @@ export const env = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID ?? '',
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET ?? '',
   razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET ?? '',
-  // Shared secret RevenueCat sends as the Authorization header on its webhook (iOS in-app purchases).
-  revenueCatWebhookSecret: process.env.REVENUECAT_WEBHOOK_SECRET ?? '',
   // Base URL of the marketing site — used to build the link inside
   // password-reset emails (e.g. `${frontendUrl}/employees/reset-password?token=...`).
   frontendUrl: process.env.FRONTEND_URL ?? 'http://localhost:5176',
@@ -84,6 +82,8 @@ export const env = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   // Bundle ID of the iOS app — the `aud` of a "Sign in with Apple" identity token.
   appleClientId: process.env.APPLE_CLIENT_ID ?? 'com.mzobs.app',
+  // Bundle ID of the employer iOS app — the `bundleId` of its signed in-app purchase transactions.
+  appleEmployerBundleId: process.env.APPLE_EMPLOYER_BUNDLE_ID ?? 'com.mzobs.employer',
   // Oldest Android versionCode allowed to run the mobile app; older builds get a blocking
   // "Update required" screen. 0 = off. Raise it (in Dokploy env) to force an update.
   minAndroidVersionCode: Number(process.env.MIN_ANDROID_VERSION_CODE ?? 0) || 0,
