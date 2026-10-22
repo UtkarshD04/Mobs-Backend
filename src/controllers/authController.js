@@ -9,6 +9,7 @@ import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
 import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
+import { checkEmailToken, EMAIL_RE } from '../utils/emailOtp.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
 import { getEmployerPlanPricing } from '../utils/employerPlanPricing.js'
@@ -327,6 +328,34 @@ export const phoneLogin = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ phone: phone.trim(), phoneVerified: true }).populate('company')
   if (!user || !user.company) return res.status(404).json({ message: 'No account found for this mobile number' })
+
+  if (user.status === 'disabled') {
+    return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
+  }
+  if (user.company.blocked) {
+    return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
+  }
+
+  user.lastActiveAt = new Date()
+  await user.save()
+
+  res.json(authResponse(user, user.company))
+})
+
+// Passwordless sign-in with an email OTP-verified through the shared send-email-otp /
+// verify-email-otp endpoints. 404 = no account uses this address (the app says so and
+// points to registration).
+export const emailLogin = asyncHandler(async (req, res) => {
+  const { email, emailToken } = req.body ?? {}
+  if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+    return res.status(400).json({ message: 'Enter a valid email address' })
+  }
+  if (typeof emailToken !== 'string' || !checkEmailToken(emailToken, email)) {
+    return res.status(400).json({ message: 'Please verify your email with the code before continuing' })
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase().trim() }).populate('company')
+  if (!user || !user.company) return res.status(404).json({ message: 'No account found for this email' })
 
   if (user.status === 'disabled') {
     return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
