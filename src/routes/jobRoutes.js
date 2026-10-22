@@ -5,6 +5,7 @@ import { paymentLimiter } from '../middleware/rateLimit.js'
 import {
   listJobs,
   jobLocationFacets,
+  jobHiringPincodes,
   getJob,
   createJob,
   updateJob,
@@ -22,6 +23,7 @@ router.use(requireAuth)
 
 router.get('/', listJobs)
 router.get('/location-facets', jobLocationFacets)
+router.get('/hiring-pincodes', jobHiringPincodes)
 // Creating and publishing both require an active employer plan — read-only
 // access to jobs already posted stays available regardless of subscription
 // state.

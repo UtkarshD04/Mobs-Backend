@@ -82,11 +82,13 @@ export const jobLocationFacets = asyncHandler(async (req, res) => {
       $group: {
         _id: { state: '$locationDetails.state', city: '$locationDetails.city', locality: '$locationDetails.locality' },
         count: { $sum: 1 },
+        // Openings still being sourced for (not draft / closed / archived).
+        active: { $sum: { $cond: [{ $eq: ['$status', 'sourcing'] }, 1, 0] } },
       },
     },
     { $limit: 1000 },
   ])
-  res.json(rows.map((r) => ({ state: r._id.state ?? '', city: r._id.city ?? '', locality: r._id.locality ?? '', count: r.count })))
+  res.json(rows.map((r) => ({ state: r._id.state ?? '', city: r._id.city ?? '', locality: r._id.locality ?? '', count: r.count, active: r.active })))
 })
 
 export const getJob = asyncHandler(async (req, res) => {
@@ -369,4 +371,22 @@ export const deleteJob = asyncHandler(async (req, res) => {
   const job = await Job.findOneAndDelete({ _id: req.params.id, company: req.company._id })
   if (!job) return res.status(404).json({ message: 'Job not found' })
   res.json({ success: true })
+})
+
+// Active hiring locations at PIN-code level: this company's openings still being sourced for
+// (status 'sourcing'), grouped by the PIN stored on the job's own locationDetails. A job has one
+// location, so every job is counted once. Jobs with no PIN are left out — callers get their
+// city-level totals from /location-facets and must not assign them a PIN.
+export const jobHiringPincodes = asyncHandler(async (req, res) => {
+  const rows = await Job.aggregate([
+    { $match: { company: req.company._id, status: 'sourcing', 'locationDetails.pincode': { $regex: /^[1-9]\d{5}$/ } } },
+    {
+      $group: {
+        _id: { state: '$locationDetails.state', city: '$locationDetails.city', pincode: '$locationDetails.pincode' },
+        active: { $sum: 1 },
+      },
+    },
+    { $limit: 1000 },
+  ])
+  res.json(rows.map((r) => ({ state: r._id.state ?? '', city: r._id.city ?? '', pincode: r._id.pincode, active: r.active })))
 })
