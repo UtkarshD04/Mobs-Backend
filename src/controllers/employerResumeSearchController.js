@@ -40,6 +40,7 @@ export function redactEmployee(employee, { unlocked, candidateId, revealed = nul
     designation: employee.designation,
     location: employee.currentCity,
     state: employee.state,
+    pincode: employee.pincode,
     preferredLocations: employee.preferredLocations,
     relocationOk: !!employee.relocationOk,
     preferredRole: employee.preferredRole,
