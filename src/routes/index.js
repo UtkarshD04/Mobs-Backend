@@ -36,6 +36,7 @@ import staffPlanEnquiryRoutes from './staffPlanEnquiryRoutes.js'
 import employeeAuthRoutes from './employeeAuthRoutes.js'
 import employeeProfileRoutes from './employeeProfileRoutes.js'
 import employeeResumeRoutes from './employeeResumeRoutes.js'
+import employeePhotoRoutes from './employeePhotoRoutes.js'
 import employeeSubscriptionRoutes from './employeeSubscriptionRoutes.js'
 import employeeJobRoutes from './employeeJobRoutes.js'
 import employeeApplicationRoutes from './employeeApplicationRoutes.js'
@@ -78,6 +79,7 @@ import employeePremiumServiceRoutes from './employeePremiumServiceRoutes.js'
 import publicPushRoutes from './publicPushRoutes.js'
 import publicJobRoutes from './publicJobRoutes.js'
 import accountDeletionRoutes from './accountDeletionRoutes.js'
+import publicTestimonialRoutes from './publicTestimonialRoutes.js'
 
 const employerRoutes = Router()
 // GST verification is mandatory: until a company's GSTIN is VERIFIED its
@@ -118,6 +120,7 @@ const employeeRoutes = Router()
 employeeRoutes.use('/auth', employeeAuthRoutes)
 employeeRoutes.use('/profile', employeeProfileRoutes)
 employeeRoutes.use('/resume', employeeResumeRoutes)
+employeeRoutes.use('/photo', employeePhotoRoutes)
 employeeRoutes.use('/subscription', employeeSubscriptionRoutes)
 employeeRoutes.use('/jobs', employeeJobRoutes)
 employeeRoutes.use('/applications', employeeApplicationRoutes)
@@ -178,6 +181,7 @@ router.use('/doot', allyRoutes)
 router.use('/campus-mantri', allyRoutes)
 router.use('/push', publicPushRoutes)
 router.use('/jobs', publicJobRoutes)
+router.use('/testimonials', publicTestimonialRoutes)
 router.use('/account-deletion', accountDeletionRoutes)
 
 export default router

@@ -25,7 +25,7 @@ import { logger } from '../config/logger.js'
 // so it's left untouched (also required for GST/tax record-keeping).
 async function deleteResumeObjects(employee) {
   if (!isS3Configured()) return
-  const keys = [employee.resume?.s3Key, ...(employee.resumeHistory ?? []).map((r) => r.s3Key)].filter(Boolean)
+  const keys = [employee.photo?.s3Key, employee.resume?.s3Key, ...(employee.resumeHistory ?? []).map((r) => r.s3Key)].filter(Boolean)
   for (const key of keys) {
     try {
       await deleteObject(key)
@@ -56,7 +56,7 @@ async function deleteLegacyResumeFiles(employee) {
 }
 
 export async function deleteEmployeeAccount(employeeId) {
-  const employee = await Employee.findById(employeeId).select('+resume.s3Key +resumeHistory.s3Key')
+  const employee = await Employee.findById(employeeId).select('+resume.s3Key +resumeHistory.s3Key +photo.s3Key')
   if (!employee) return false
 
   await deleteResumeObjects(employee)

@@ -22,7 +22,7 @@ export const requireEmployeeAuth = asyncHandler(async (req, res, next) => {
   // (never sent to a client raw) — explicitly pulled in here since profile
   // needs resume keys to mint an access link, and passwordHash's mere
   // presence (never its value) to tell the client whether a password is set.
-  const employee = await Employee.findById(payload.sub).select('+resume.s3Key +resumeHistory.s3Key +passwordHash')
+  const employee = await Employee.findById(payload.sub).select('+resume.s3Key +resumeHistory.s3Key +photo.s3Key +passwordHash')
   if (!employee) return res.status(401).json({ message: 'Employee no longer exists' })
   if (employee.status === 'suspended') return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
 

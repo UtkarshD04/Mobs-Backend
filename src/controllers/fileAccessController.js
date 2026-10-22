@@ -67,3 +67,27 @@ export const redeemResumeAccess = asyncHandler(async (req, res) => {
 
   res.redirect(url)
 })
+
+// Redeems a `/files/photo/:token` link (see resumeAccess.js buildPhotoAccessPath).
+// Same token-is-the-credential model as the resume links above; the redirect is
+// short-lived but the browser may cache the image itself.
+export const redeemPhotoAccess = asyncHandler(async (req, res) => {
+  let payload
+  try {
+    payload = verifyFileAccessToken(req.params.token)
+  } catch {
+    return res.status(401).json({ message: 'This photo link has expired.' })
+  }
+  if (payload.purpose !== 'candidate-photo' || !payload.s3Key) return res.status(400).json({ message: 'Invalid file reference.' })
+  if (!isS3Configured()) return res.status(503).json({ message: 'File storage is not configured.' })
+
+  let url
+  try {
+    url = await getPresignedDownloadUrl(payload.s3Key, { expiresIn: 60 })
+  } catch (err) {
+    logger.error({ err }, 'Failed to generate photo presigned URL')
+    return res.status(502).json({ message: 'Could not open this photo right now.' })
+  }
+  res.setHeader('Cache-Control', 'private, max-age=300')
+  res.redirect(url)
+})

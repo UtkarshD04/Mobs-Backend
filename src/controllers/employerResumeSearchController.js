@@ -8,7 +8,7 @@ import Employee from '../models/Employee.js'
 import Candidate from '../models/Candidate.js'
 import CandidateUnlock from '../models/CandidateUnlock.js'
 import ResumeAccessLog from '../models/ResumeAccessLog.js'
-import { buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
+import { buildResumeAccessPath, buildLegacyResumeAccessPath, photoUrlOf } from '../utils/resumeAccess.js'
 import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } from '../utils/creditWallet.js'
 import { findOrCreateSourcedCandidate, JobNotFoundError } from '../utils/resdexSourcing.js'
 import { REVEAL_PARTS, revealedParts, parseRevealField } from '../utils/candidateReveal.js'
@@ -33,6 +33,8 @@ export function redactEmployee(employee, { unlocked, candidateId, revealed = nul
     candidateId,
     name: employee.name,
     initials: initialsOf(employee.name),
+    // The candidate's own profile photo (uploaded when they create their profile); '' when none.
+    photoUrl: photoUrlOf(employee),
     headline: employee.resumeHeadline,
     experienceYears: employee.experienceYears,
     experience: employee.experience,
@@ -93,7 +95,7 @@ export const searchResumeDatabase = asyncHandler(async (req, res) => {
 
   const { data, page, limit, total } = await paginate(Employee, query, paginationParams(req), {
     sort: { profileCompletedAt: -1, updatedAt: -1 },
-    select: '+resume.text',
+    select: '+resume.text +photo.s3Key',
   })
   setPaginationHeaders(res, { page, limit, total })
 
@@ -119,7 +121,7 @@ export const searchResumeDatabase = asyncHandler(async (req, res) => {
 // GET /api/employer/resume-search/:employeeId — single profile, same
 // redaction rules as the list.
 export const getResumeDatabaseCandidate = asyncHandler(async (req, res) => {
-  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() })
+  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+photo.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
   const candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id }).select('_id')
@@ -139,7 +141,7 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   const reveal = parseRevealField(req.body?.field)
   if (!reveal) return res.status(400).json({ message: 'field must be one of: email, phone, resume' })
 
-  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
+  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key +photo.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
   let candidate
@@ -188,7 +190,7 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
 // unlock is what the CV credit pays for). Every call is logged, same as
 // candidateController.getCandidateResumeUrl.
 export const getResumeDatabaseResumeUrl = asyncHandler(async (req, res) => {
-  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key')
+  const employee = await Employee.findOne({ _id: req.params.employeeId, ...baseResumeSearchFilter() }).select('+resume.s3Key +photo.s3Key')
   if (!employee) return res.status(404).json({ message: 'Candidate not found' })
 
   const candidate = await Candidate.findOne({ company: req.company._id, employee: employee._id }).select('_id application')

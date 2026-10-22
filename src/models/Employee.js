@@ -40,6 +40,17 @@ const resumeSchema = new Schema(
   { _id: false }
 )
 
+// Profile photo shown on the candidate's own profile and to recruiters in search.
+// s3Key is select:false like the resume's - clients only ever get a short-lived link.
+const photoSchema = new Schema(
+  {
+    s3Key: { type: String, default: '', select: false },
+    version: { type: Number, default: 0 },
+    uploadedOn: { type: Date, default: null },
+  },
+  { _id: false }
+)
+
 const resumeHistorySchema = new Schema(
   {
     version: Number,
@@ -151,6 +162,7 @@ const employeeSchema = new Schema(
     github: { type: String, default: '' },
     resumeHeadline: { type: String, default: '' },
 
+    photo: { type: photoSchema, default: () => ({}) },
     resume: { type: resumeSchema, default: () => ({}) },
     resumeHistory: { type: [resumeHistorySchema], default: [] },
     skillTrack: { type: skillTrackSchema, default: () => ({}) },

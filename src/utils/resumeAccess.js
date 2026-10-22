@@ -7,6 +7,24 @@ export function employeeResumeKey(employeeId, version, ext) {
   return `candidates/${employeeId}/resume/v${version}${ext}`
 }
 
+export function employeePhotoKey(employeeId, version, ext) {
+  return `candidates/${employeeId}/photo/v${version}${ext}`
+}
+
+// Images are fetched by <img> tags, possibly long after the list was loaded, so
+// these links outlive the 10-minute resume links. Still token-gated to one object.
+export function buildPhotoAccessPath(s3Key) {
+  const token = signFileAccessToken({ s3Key, purpose: 'candidate-photo' }, '2h')
+  return `/files/photo/${token}`
+}
+
+// The link for an employee's photo, or '' when they have none. `employee` must
+// have been loaded with `+photo.s3Key`.
+export function photoUrlOf(employee) {
+  const key = employee?.photo?.s3Key
+  return key ? buildPhotoAccessPath(key) : ''
+}
+
 export function resumePoolKey(resumeId, ext) {
   return `resume-pool/${resumeId}/resume${ext}`
 }

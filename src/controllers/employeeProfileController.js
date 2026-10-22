@@ -1,5 +1,5 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
+import { serializeResumeSubdoc, serializeResumeHistory, photoUrlOf } from '../utils/resumeAccess.js'
 import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
 import { checkPhoneToken } from '../utils/phoneToken.js'
 
@@ -55,6 +55,8 @@ function serializeProfile(employee) {
   const json = employee.toJSON()
   json.resume = serializeResumeSubdoc(employee.resume, 'employee-resume')
   json.resumeHistory = serializeResumeHistory(employee.resumeHistory, 'employee-resume')
+  json.photoUrl = photoUrlOf(employee)
+  delete json.photo
   json.hasPassword = !!employee.passwordHash
   delete json.passwordHash
   return json
