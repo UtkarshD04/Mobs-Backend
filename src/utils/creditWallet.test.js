@@ -177,7 +177,7 @@ describe('admin ledger adjustments', () => {
     const wallet = await getWalletBalance(companyId)
     assert.equal(wallet.remainingCredits, 12)
 
-    const rows = await CreditLedger.find({ company: companyId }).sort({ createdAt: 1 })
+    const rows = await CreditLedger.find({ company: companyId }).sort({ createdAt: 1, _id: 1 })
     assert.equal(rows.length, 3)
     assert.deepEqual(rows.map((r) => r.balanceAfter), [10, 15, 12])
     assert.deepEqual(rows.map((r) => r.type), ['purchase', 'admin_add', 'admin_deduct'])

@@ -153,7 +153,7 @@ describe('only revealed parts are ever sent', () => {
     assert.equal(out.phone, null)
     assert.deepEqual(out.revealed, ['email'])
     assert.equal(out.unlocked, true)
-    assert.ok(out.contactPreview.phone.endsWith('3210'), 'masked preview is still there')
+    assert.equal(out.contactPreview.phone, '**********', 'phone preview is fully masked, no digits leak')
   })
 
   test('pipeline candidate: phone revealed, email still hidden', () => {

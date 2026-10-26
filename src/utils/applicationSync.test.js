@@ -1,6 +1,8 @@
+process.env.MONGO_URI ??= 'mongodb://127.0.0.1:27017/unused'
+process.env.JWT_SECRET ??= 'unit-test-secret'
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { applicationStatusForStage, STATUS_UPDATE_MESSAGES } from './applicationSync.js'
+const { applicationStatusForStage, STATUS_UPDATE_MESSAGES } = await import('./applicationSync.js')
 
 describe('applicationStatusForStage', () => {
   test('maps employer pipeline stages to the candidate-facing application status', () => {

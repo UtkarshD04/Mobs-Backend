@@ -23,6 +23,8 @@ import {
   exchangeHandoff,
 } from '../controllers/employeeAuthController.js'
 
+import { logout } from '../middleware/authCookie.js'
+
 const router = Router()
 
 router.post('/send-otp', sendPhoneOtp)
@@ -44,5 +46,7 @@ router.post('/handoff', authLimiter, requireEmployeeAuth, createHandoff)
 router.post('/exchange', authLimiter, exchangeHandoff)
 router.get('/me', requireEmployeeAuth, getMe)
 router.put('/me', requireEmployeeAuth, updateMe)
+
+router.post('/logout', logout('employee'))
 
 export default router

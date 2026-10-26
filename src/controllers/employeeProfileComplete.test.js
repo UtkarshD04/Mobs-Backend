@@ -1,6 +1,8 @@
+process.env.MONGO_URI ??= 'mongodb://127.0.0.1:27017/unused'
+process.env.JWT_SECRET ??= 'unit-test-secret'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { missingProfileFields } from './employeeProfileController.js'
+const { missingProfileFields } = await import('./employeeProfileController.js')
 
 const complete = {
   name: 'Asha Rao',

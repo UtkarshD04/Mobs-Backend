@@ -22,6 +22,8 @@ import {
 } from '../controllers/authController.js'
 import { sendEmailOtp, verifyEmailOtp } from '../controllers/employeeAuthController.js'
 
+import { logout } from '../middleware/authCookie.js'
+
 const router = Router()
 
 router.post('/verify-phone-widget', verifyPhoneWidget)
@@ -44,5 +46,7 @@ router.post('/exchange', authLimiter, exchangeHandoff)
 router.get('/me', requireAuth, getMe)
 router.put('/me', requireAuth, updateMe)
 router.delete('/me', authLimiter, requireAuth, deleteMe)
+
+router.post('/logout', logout('employer'))
 
 export default router

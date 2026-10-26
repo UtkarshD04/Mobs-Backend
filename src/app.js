@@ -1,4 +1,5 @@
 import express from 'express'
+import { authCookies } from './middleware/authCookie.js'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
@@ -81,7 +82,7 @@ app.use(compression())
 // read pagination metadata off the response at all — browsers hide any
 // response header from JS by default unless it's explicitly exposed here.
 // Non-sensitive metadata only; nothing else about the CORS policy changes.
-app.use(cors({ origin: env.corsOrigin, exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'] }))
+app.use(cors({ origin: env.corsOrigin, credentials: true, exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Limit'] }))
 // Default pino-http serializers dump the full req/res (headers included, so
 // the Authorization bearer token would land in the terminal on every call) —
 // pared down to just what's useful for a dev console.
@@ -122,7 +123,7 @@ app.use('/files', (_req, res, next) => {
   next()
 })
 app.use('/files', apiLimiter, fileAccessRoutes)
-app.use('/api', apiLimiter, routes)
+app.use('/api', authCookies, apiLimiter, routes)
 
 app.use(notFound)
 app.use(errorHandler)

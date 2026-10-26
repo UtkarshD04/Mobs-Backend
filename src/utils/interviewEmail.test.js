@@ -1,6 +1,8 @@
+process.env.MONGO_URI ??= 'mongodb://127.0.0.1:27017/unused'
+process.env.JWT_SECRET ??= 'unit-test-secret'
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildInterviewEmail, formatWhen, interviewEmailGate, maskEmail, safeLink, sendInterviewEmail } from './interviewEmail.js'
+const { buildInterviewEmail, formatWhen, interviewEmailGate, maskEmail, safeLink, sendInterviewEmail } = await import('./interviewEmail.js')
 
 const base = {
   candidateName: 'Asha Rao',
