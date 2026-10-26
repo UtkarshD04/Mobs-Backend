@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import SupportTicket from '../models/SupportTicket.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 export const listTickets = asyncHandler(async (req, res) => {
   const { status, source, category, search } = req.query
@@ -11,7 +12,7 @@ export const listTickets = asyncHandler(async (req, res) => {
   if (source && source !== 'all') query.source = source
   if (category && category !== 'all') query.category = category
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ subject: regex }, { message: regex }]
   }
 

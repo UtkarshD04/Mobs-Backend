@@ -6,6 +6,7 @@ import { paginationParams, paginate, setPaginationHeaders } from '../utils/pagin
 import Company from '../models/Company.js'
 import User from '../models/User.js'
 import GstVerificationAttempt from '../models/GstVerificationAttempt.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 export const listCompanies = asyncHandler(async (req, res) => {
   const { status, search } = req.query
@@ -13,7 +14,7 @@ export const listCompanies = asyncHandler(async (req, res) => {
 
   if (status && status !== 'all') query.verificationStatus = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ name: regex }, { hq: regex }, { industry: regex }]
   }
 

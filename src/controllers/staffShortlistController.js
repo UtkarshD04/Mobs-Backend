@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { logStaffActivity } from '../utils/staffActivityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
 import Employee from '../models/Employee.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 export const listShortlist = asyncHandler(async (req, res) => {
   const { status, search } = req.query
@@ -10,7 +11,7 @@ export const listShortlist = asyncHandler(async (req, res) => {
   if (req.staff.accessLevel !== 'admin') query['resume.assignedTo'] = req.staff._id
   if (status && status !== 'all') query['shortlist.status'] = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ name: regex }, { email: regex }, { skills: regex }]
   }
 

@@ -11,6 +11,7 @@ import { sanitizeLocationDetails, parseLocationFilters, buildGeoPipeline, shapeG
 import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Payment from '../models/Payment.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 const INPUT_FIELDS = [
   'title',
@@ -50,7 +51,7 @@ export const listJobs = asyncHandler(async (req, res) => {
   if (status && status !== 'all') query.status = status
   if (department && department !== 'all') query.department = department
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ title: regex }, { department: regex }, { location: regex }]
   }
 

@@ -6,6 +6,7 @@ import { sendMail } from '../utils/mailer.js'
 import { staffCredentialsEmailHtml } from '../utils/staffWelcomeEmail.js'
 import { env } from '../config/env.js'
 import StaffUser from '../models/StaffUser.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 const ROLES = ['Operations Manager', 'Resume Verification Lead', 'Interview Panel', 'Employer Success', 'Compliance & KYC']
 
@@ -16,7 +17,7 @@ export const listTeam = asyncHandler(async (req, res) => {
   if (accessLevel && ['admin', 'staff'].includes(accessLevel)) query.accessLevel = accessLevel
   if (status && ['active', 'invited', 'disabled'].includes(status)) query.status = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ name: regex }, { email: regex }]
   }
 

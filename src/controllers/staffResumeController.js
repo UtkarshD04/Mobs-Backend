@@ -8,6 +8,7 @@ import { sendPush } from '../utils/push.js'
 import { notifyEmployee } from '../utils/notifyEmployee.js'
 import { staffNotificationUrl } from '../utils/notificationLinks.js'
 import { serializeResumeSubdoc, serializeResumeHistory } from '../utils/resumeAccess.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 
@@ -41,7 +42,7 @@ export const listResumeQueue = asyncHandler(async (req, res) => {
 
   if (status && status !== 'all') query['resume.status'] = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ name: regex }, { email: regex }, { skills: regex }]
   }
 

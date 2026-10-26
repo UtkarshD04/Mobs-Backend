@@ -11,6 +11,7 @@ import { uploadObject, deleteObject, isS3Configured } from '../utils/s3.js'
 import { validateResumeFile, RESUME_POOL_ALLOWED_EXTENSIONS } from '../utils/fileValidation.js'
 import { resumePoolKey, buildResumeAccessPath, buildLegacyResumeAccessPath } from '../utils/resumeAccess.js'
 import { logger } from '../config/logger.js'
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 
 const STATUSES = ['pending', 'verified', 'changes', 'rejected']
 
@@ -92,7 +93,7 @@ export const list = asyncHandler(async (req, res) => {
 
   if (status && status !== 'all') query.status = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search).trim().slice(0, 80)), 'i')
     query.$or = [{ name: regex }, { email: regex }, { file: regex }]
   }
 
