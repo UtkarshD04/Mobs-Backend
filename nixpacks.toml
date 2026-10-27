@@ -1,0 +1,10 @@
+# Install Node from nodejs.org instead of Nix: the default plan (nodejs_24 + npm-9_x) pulls ~130 MB
+# from cache.nixos.org, which the Dokploy server downloads at ~1 KB/s. Install/start phases stay default
+# (npm ci, npm run start).
+[phases.setup]
+nixPkgs = []
+nixLibs = []
+aptPkgs = []
+cmds = [
+  "ARCH=$(uname -m | sed -e 's/x86_64/x64/' -e 's/aarch64/arm64/') && (curl -fsSL https://nodejs.org/dist/v24.10.0/node-v24.10.0-linux-$ARCH.tar.gz || wget -qO- https://nodejs.org/dist/v24.10.0/node-v24.10.0-linux-$ARCH.tar.gz) | tar -xz -C /usr/local --strip-components=1 && node -v && npm -v",
+]
