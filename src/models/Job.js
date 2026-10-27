@@ -60,6 +60,9 @@ const jobSchema = new Schema(
     // Set by Mzobs staff on approval — gates whether the employee-facing job
     // board (GET /api/employee/jobs) lists this opening.
     visibleToCandidates: { type: Boolean, default: false },
+    // Candidate-facing page views, counted from `viewsTrackedSince` (tracking started after jobs already existed, so older jobs undercount).
+    viewCount: { type: Number, default: 0 },
+    viewsTrackedSince: { type: Date }, // no default, so $min can set it on the first view
     feeTotal: { type: Number, default: 0 },
     feeStatus: { type: String, enum: ['unpaid', 'paid'], default: 'unpaid' },
     paidOn: { type: Date, default: null },

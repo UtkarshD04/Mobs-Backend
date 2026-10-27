@@ -1,3 +1,4 @@
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { logActivity } from '../utils/activityLog.js'
 import { paginationParams, paginate, setPaginationHeaders } from '../utils/paginate.js'
@@ -16,6 +17,9 @@ import { env } from '../config/env.js'
 import { FEEDBACK_REASONS, toEmployerView, validateSubmission } from '../utils/rejectionFeedback.js'
 import { recordRejectionFeedback } from '../utils/rejectionFeedbackService.js'
 import RejectionFeedback from '../models/RejectionFeedback.js'
+import { audit } from '../utils/audit.js'
+import { recordEvent } from './applicantsController.js'
+import { pipelineStageOf, STAGE_LABELS } from '../utils/pipeline.js'
 
 // A user@example.com -> u***@example.com style mask — enough to show the
 // applicant has a real, reachable email/phone without revealing it before
@@ -106,7 +110,7 @@ export const listCandidates = asyncHandler(async (req, res) => {
   if (jobId && jobId !== 'all') query.job = jobId
   if (stage && stage !== 'all') query.stage = stage
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search)), 'i')
     query.$or = [{ name: regex }, { appliedFor: regex }, { skills: regex }]
   }
 
@@ -164,6 +168,7 @@ export const unlockCandidate = asyncHandler(async (req, res) => {
     // unlock itself look like it failed.
     try {
       await logActivity(req.company._id, `Unlocked ${candidate.name}'s contact details (1 CV credit)`, 'gold')
+      await audit(req, 'cv.unlocked', { targetType: 'candidate', targetId: candidate._id, targetLabel: candidate.name, detail: `${req.body?.field ?? 'details'} · 1 CV credit` })
     } catch (err) {
       logger.warn({ err }, 'Failed to log company activity for CV unlock')
     }
@@ -216,13 +221,22 @@ export const setCandidateStage = asyncHandler(async (req, res) => {
     return res.status(400).json({ code: 'REJECTION_REASON_REQUIRED', message: 'Tell the candidate why they were not selected (a few words is enough).' })
   }
 
+  const fromKey = pipelineStageOf(candidate)
   const wasHired = candidate.stage === 'hired'
   const wasOffered = candidate.stage === 'offered'
   candidate.stage = stage
+  candidate.stageChangedAt = new Date()
   if (feedbackValue) candidate.rejectionReason = feedbackValue.reasons.map((code) => FEEDBACK_REASONS[code].label).join('; ')
   else if (stage === 'rejected') candidate.rejectionReason = reason.slice(0, 500)
 
   await candidate.save()
+
+  // Same history and audit entries the Applicants page writes, so the trail is complete whichever client moved them.
+  const toKey = pipelineStageOf(candidate)
+  if (toKey !== fromKey) {
+    await recordEvent(req, candidate, stage === 'rejected' ? 'reject' : 'stage', `${stage === 'rejected' ? 'Rejected from' : 'Moved from'} ${STAGE_LABELS[fromKey]}${stage === 'rejected' ? '' : ` to ${STAGE_LABELS[toKey]}`}`, { from: fromKey, to: toKey })
+    await audit(req, stage === 'rejected' ? 'candidate.rejected' : 'candidate.moved', { targetType: 'candidate', targetId: candidate._id, targetLabel: candidate.name, detail: `${STAGE_LABELS[fromKey]} → ${STAGE_LABELS[toKey]}` })
+  }
 
   try {
     await syncApplicationStatusFromStage(candidate, stage)

@@ -12,6 +12,7 @@ import Job from '../models/Job.js'
 import Invoice from '../models/Invoice.js'
 import Payment from '../models/Payment.js'
 import { escapeRegex } from '../utils/jobQueryFilters.js'
+import { audit } from '../utils/audit.js'
 
 const INPUT_FIELDS = [
   'title',
@@ -163,6 +164,7 @@ export const setJobStatus = asyncHandler(async (req, res) => {
   const status = requestedStatus === 'pending_review' ? 'sourcing' : requestedStatus
   const enteringAwaitingPayment = status === 'awaiting_payment' && job.status !== 'awaiting_payment' && !job.invoiceId
 
+  const prevStatus = job.status
   job.status = status
   if (requestedStatus === 'pending_review') {
     if (!job.submittedOn) job.submittedOn = new Date()
@@ -184,6 +186,9 @@ export const setJobStatus = asyncHandler(async (req, res) => {
 
   await job.save()
 
+  const wasStatus = prevStatus
+  if (requestedStatus === 'pending_review') await audit(req, wasStatus === 'closed' ? 'job.reopened' : 'job.published', { targetType: 'job', targetId: job._id, targetLabel: job.title })
+  else if (status === 'closed') await audit(req, 'job.closed', { targetType: 'job', targetId: job._id, targetLabel: job.title })
   if (requestedStatus === 'pending_review') await logActivity(req.company._id, `Requirement "${job.title}" is now live for candidates`, 'green')
   else if (status === 'sourcing') await logActivity(req.company._id, `"${job.title}" released to Mzobs sourcing`, 'gold')
 

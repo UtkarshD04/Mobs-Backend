@@ -4,6 +4,11 @@ import companyRoutes from './companyRoutes.js'
 import jobRoutes from './jobRoutes.js'
 import geoRoutes from './geoRoutes.js'
 import teamRoutes from './teamRoutes.js'
+import applicantsRoutes from './applicantsRoutes.js'
+import overviewRoutes from './overviewRoutes.js'
+import managedShortlistRoutes from './managedShortlistRoutes.js'
+import communicationsRoutes from './communicationsRoutes.js'
+import staffManagedShortlistRoutes from './staffManagedShortlistRoutes.js'
 import batchRoutes from './batchRoutes.js'
 import candidateRoutes from './candidateRoutes.js'
 import employerResumeSearchRoutes from './employerResumeSearchRoutes.js'
@@ -91,6 +96,10 @@ employerRoutes.use('/company', companyRoutes)
 employerRoutes.use('/jobs', jobRoutes)
 employerRoutes.use('/geo', geoRoutes)
 employerRoutes.use('/team', teamRoutes)
+employerRoutes.use('/applicants', applicantsRoutes)
+employerRoutes.use('/overview', overviewRoutes)
+employerRoutes.use('/managed-shortlist', managedShortlistRoutes)
+employerRoutes.use('/communications', communicationsRoutes)
 employerRoutes.use('/batches', batchRoutes)
 employerRoutes.use('/candidates', candidateRoutes)
 employerRoutes.use('/rejection-feedback', rejectionFeedbackRoutes)
@@ -140,6 +149,7 @@ staffRoutes.use('/auth', staffAuthRoutes)
 staffRoutes.use('/companies', staffCompanyRoutes)
 staffRoutes.use('/employers', staffEmployerRoutes)
 staffRoutes.use('/jobs', staffJobRoutes)
+staffRoutes.use('/managed-shortlists', staffManagedShortlistRoutes)
 staffRoutes.use('/resumes', staffResumeRoutes)
 staffRoutes.use('/applications', staffApplicationRoutes)
 staffRoutes.use('/rejection-feedback', staffRejectionFeedbackRoutes)

@@ -37,11 +37,27 @@ const candidateSchema = new Schema(
     stage: { type: String, enum: ['shared', 'shortlisted', 'interviewing', 'offered', 'hired', 'rejected'], default: 'shared' },
     sharedOn: { type: Date, default: Date.now },
     rejectionReason: { type: String, default: null },
+
+    // Recruiter pipeline (Applicants page). 'New' vs 'Reviewed' are both stage 'shared' — reviewedAt tells them apart,
+    // so every other consumer of `stage` (applications sync, staff, the mobile apps) is untouched.
+    reviewedAt: { type: Date, default: null },
+    stageChangedAt: { type: Date, default: null },
+    owner: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    tags: { type: [String], default: [] },
+    followUpOn: { type: Date, default: null },
+    // Private to the employer's team: never selected by default and never part of anything a candidate can read.
+    notes: {
+      type: [{ text: { type: String, required: true, maxlength: 2000 }, kind: { type: String, enum: ['note', 'rejection'], default: 'note' }, by: { type: Schema.Types.ObjectId, ref: 'User' }, byName: String, at: { type: Date, default: Date.now } }],
+      default: [],
+      select: false,
+    },
   },
   { timestamps: true }
 )
 
-applyIdTransform(candidateSchema, { job: 'jobId', batch: 'batchId', employee: 'employeeId', application: 'applicationId' })
+candidateSchema.index({ company: 1, job: 1, stage: 1 })
+
+applyIdTransform(candidateSchema, { job: 'jobId', batch: 'batchId', employee: 'employeeId', application: 'applicationId', owner: 'ownerId' })
 
 const baseTransform = candidateSchema.options.toJSON.transform
 candidateSchema.options.toJSON.transform = (doc, ret, options) => {

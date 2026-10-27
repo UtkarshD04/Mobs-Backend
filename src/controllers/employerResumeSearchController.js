@@ -13,6 +13,7 @@ import { unlockCandidateForCredit, getWalletBalance, InsufficientCreditsError } 
 import { findOrCreateSourcedCandidate, JobNotFoundError } from '../utils/resdexSourcing.js'
 import { REVEAL_PARTS, revealedParts, parseRevealField } from '../utils/candidateReveal.js'
 import { logger } from '../config/logger.js'
+import { audit } from '../utils/audit.js'
 
 // Resdex-style resume database search: every candidate account on the
 // platform (not just this employer's own applicants — that's
@@ -172,6 +173,7 @@ export const unlockResumeDatabaseCandidate = asyncHandler(async (req, res) => {
   if (!result.alreadyUnlocked) {
     try {
       await logActivity(req.company._id, `Sourced and unlocked ${employee.name} via resume search (1 CV credit)`, 'gold')
+      await audit(req, 'cv.unlocked', { targetType: 'candidate', targetId: employee._id, targetLabel: employee.name, detail: 'resume search · 1 CV credit' })
     } catch (err) {
       logger.warn({ err }, 'Failed to log company activity for Resdex unlock')
     }

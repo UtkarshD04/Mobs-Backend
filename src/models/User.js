@@ -15,7 +15,7 @@ const userSchema = new Schema(
     // password-only accounts. sparse so multiple null values don't collide
     // on the unique-ish lookup pattern.
     googleId: { type: String, default: null, index: true, sparse: true },
-    role: { type: String, enum: ['Admin', 'Hiring Manager', 'Recruiter', 'Interviewer'], required: true },
+    role: { type: String, enum: ['Owner', 'Admin', 'Hiring Manager', 'Recruiter', 'Interviewer', 'Finance'], required: true },
     status: { type: String, enum: ['active', 'invited', 'disabled'], default: 'active' },
     lastActiveAt: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null, select: false },

@@ -151,6 +151,7 @@ export const getLatestJob = asyncHandler(async (req, res) => {
     'name logo verificationStatus'
   )
   if (!job) return res.status(404).json({ message: 'Job not found' })
+  Job.updateOne({ _id: job._id }, { $inc: { viewCount: 1 }, $min: { viewsTrackedSince: new Date() } }).catch(() => {})
   res.json(toLatestJobSummary(job))
 })
 

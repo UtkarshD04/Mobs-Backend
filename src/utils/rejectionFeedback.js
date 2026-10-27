@@ -54,6 +54,14 @@ export const FEEDBACK_REASONS = {
   position_closed: { category: 'non_skill', label: 'Position closed or role cancelled' },
   other_job_related: { category: 'other', label: 'Other job-related reason' },
 
+  // Candidate-visible options offered by the recruiter portal's reject dialog (`portal: true`). `legacy` here only means
+  // "not listed by the older forms", so existing clients and tests keep seeing the original list.
+  skills_not_matching: { legacy: true, portal: true, category: 'skill', label: 'Skills do not match this role’s current requirements', improvement: 'Skills the role asks for', suggestion: 'Pick two or three skills from the job description and build a small project or exercise around each, then add it to your profile.' },
+  experience_level_differs: { legacy: true, portal: true, category: 'non_skill', label: 'Experience level differs from the role requirement' },
+  another_selected: { legacy: true, portal: true, category: 'non_skill', label: 'Another candidate was selected' },
+  position_on_hold: { legacy: true, portal: true, category: 'non_skill', label: 'Position is closed or on hold' },
+  future_roles: { legacy: true, portal: true, category: 'non_skill', label: 'Profile will be considered for relevant future roles' },
+
   // Offered by the first version of this feature; kept so existing records stay valid.
   technical_skills: { legacy: true, category: 'skill', label: 'Technical skills for the role', improvement: 'Technical depth for the role', suggestion: 'Pick two or three skills from the job description and build a small project or exercise around each, then add it to your profile.' },
   relevant_experience: { legacy: true, category: 'skill', label: 'Relevant experience', improvement: 'Hands-on experience in this kind of role', suggestion: 'Highlight the closest work, internships or projects you have done, and describe what you owned and the result.' },
@@ -64,6 +72,9 @@ export const FEEDBACK_REASONS = {
   role_mismatch: { legacy: true, category: 'non_skill', label: 'The role was not the right fit for your background' },
   location_availability: { legacy: true, category: 'non_skill', label: 'Location or availability did not align' },
 }
+
+// The six candidate-visible choices in the recruiter portal's reject dialog (location_availability is an older code reused as-is).
+export const PORTAL_REASONS = ['skills_not_matching', 'experience_level_differs', 'another_selected', 'position_on_hold', 'location_availability', 'future_roles']
 
 export const OFFERED_REASONS = Object.entries(FEEDBACK_REASONS).filter(([, r]) => !r.legacy).map(([code]) => code)
 

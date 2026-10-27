@@ -7,6 +7,7 @@ import { env } from './src/config/env.js'
 import { logger } from './src/config/logger.js'
 import { lifecycle } from './src/config/lifecycle.js'
 import { isRedisConfigured } from './src/config/redis.js'
+import { startInterviewReminderSweep } from './src/utils/interviewReminders.js'
 
 let server
 
@@ -17,6 +18,7 @@ async function start() {
   server.keepAliveTimeout = env.keepAliveTimeoutMs
   server.headersTimeout = env.keepAliveTimeoutMs + 1000
   server.requestTimeout = env.requestTimeoutMs
+  startInterviewReminderSweep()
 }
 
 // Drain: /ready flips to 503 so the load balancer stops sending new traffic, in-flight

@@ -19,8 +19,8 @@ export class LastAdminError extends Error {
 export async function deleteEmployerAccount(user) {
   const companyId = user.company
   const others = await User.countDocuments({ company: companyId, _id: { $ne: user._id } })
-  if (others > 0 && user.role === 'Admin') {
-    const otherAdmins = await User.countDocuments({ company: companyId, _id: { $ne: user._id }, role: 'Admin', status: 'active' })
+  if (others > 0 && ['Admin', 'Owner'].includes(user.role)) {
+    const otherAdmins = await User.countDocuments({ company: companyId, _id: { $ne: user._id }, role: { $in: ['Admin', 'Owner'] }, status: 'active' })
     if (otherAdmins === 0) throw new LastAdminError()
   }
 

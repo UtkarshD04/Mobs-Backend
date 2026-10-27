@@ -99,12 +99,18 @@ export const listPublicJobs = asyncHandler(async (req, res) => {
   res.json(jobs.map(publicJob))
 })
 
+// Fire-and-forget page-view counter for the recruiter's Job insights. A failure here must never affect the candidate's request.
+function trackJobView(jobId) {
+  Job.updateOne({ _id: jobId }, { $inc: { viewCount: 1 }, $min: { viewsTrackedSince: new Date() } }).catch(() => {})
+}
+
 export const getPublicJob = asyncHandler(async (req, res) => {
   const job = await Job.findOne({ _id: req.params.id, ...publicJobFilter() }).populate(
     'company',
     'name logo'
   )
   if (!job) return res.status(404).json({ message: 'Job not found' })
+  trackJobView(job._id)
   res.json(publicJob(job))
 })
 

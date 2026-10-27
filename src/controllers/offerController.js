@@ -4,6 +4,9 @@ import { initialsOf } from '../utils/initials.js'
 import Offer from '../models/Offer.js'
 import Candidate from '../models/Candidate.js'
 import Job from '../models/Job.js'
+import { audit } from '../utils/audit.js'
+import { recordEvent } from './applicantsController.js'
+import { pipelineStageOf, STAGE_LABELS } from '../utils/pipeline.js'
 
 export const listOffers = asyncHandler(async (req, res) => {
   const offers = await Offer.find({ company: req.company._id }).sort({ sentOn: -1 })
@@ -38,11 +41,15 @@ export const createOffer = asyncHandler(async (req, res) => {
   })
 
   if (candidate.stage === 'shortlisted' || candidate.stage === 'interviewing') {
+    const fromKey = pipelineStageOf(candidate)
     candidate.stage = 'offered'
+    candidate.stageChangedAt = new Date()
     await candidate.save()
+    await recordEvent(req, candidate, 'stage', `Moved from ${STAGE_LABELS[fromKey]} to Offer`, { from: fromKey, to: 'offer' })
   }
 
   await logActivity(req.company._id, `Offer sent to ${candidate.name} for ${role}`, 'gold')
+  await audit(req, 'offer.created', { targetType: 'candidate', targetId: candidate._id, targetLabel: candidate.name, detail: role })
 
   res.status(201).json(offer)
 })
