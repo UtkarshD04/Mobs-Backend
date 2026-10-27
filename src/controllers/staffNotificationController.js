@@ -1,3 +1,4 @@
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { formatRelative } from '../utils/formatDate.js'
 import StaffNotification from '../models/StaffNotification.js'
@@ -32,7 +33,7 @@ export const listRecipients = asyncHandler(async (req, res) => {
 
   const query = {}
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search)), 'i')
     query.$or = config.searchFields.map((field) => ({ [field]: regex }))
   }
 

@@ -8,6 +8,9 @@ import StaffUser from '../src/models/StaffUser.js'
 import Job from '../src/models/Job.js'
 
 async function seed() {
+  if (env.isProduction && (env.seedAdminPassword === 'Passw0rd!123' || env.seedStaffPassword === 'Passw0rd!123')) {
+    throw new Error('Refusing to seed production with the default Passw0rd!123 password — set SEED_ADMIN_PASSWORD and SEED_STAFF_PASSWORD.')
+  }
   await connectDB(env.mongoUri)
 
   let company = await Company.findOne({ name: env.seedCompanyName })

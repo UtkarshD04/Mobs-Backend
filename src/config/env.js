@@ -214,3 +214,10 @@ export const env = {
     ],
   },
 }
+
+// A guessable signing secret lets anyone forge staff/employer/employee tokens. Warn (don't
+// refuse to boot, so a live deploy can't be taken down by this check) when production runs
+// with a short or dev-looking JWT_SECRET.
+if (env.isProduction && (env.jwtSecret.length < 32 || /^dev[-_]|changeme|secret$/i.test(env.jwtSecret))) {
+  console.warn('[security] JWT_SECRET is weak for production — set a random value of 32+ characters (e.g. `openssl rand -hex 48`) in Dokploy.')
+}

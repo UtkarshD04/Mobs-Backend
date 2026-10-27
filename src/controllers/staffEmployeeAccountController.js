@@ -1,3 +1,4 @@
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -14,7 +15,7 @@ export const listEmployees = asyncHandler(async (req, res) => {
 
   if (status && status !== 'all') query.status = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search)), 'i')
     query.$or = [{ name: regex }, { email: regex }]
   }
 

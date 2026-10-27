@@ -1,3 +1,4 @@
+import { escapeRegex } from '../utils/jobQueryFilters.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { feeFor, resumesFor } from '../utils/jobPricing.js'
 import { logActivity } from '../utils/activityLog.js'
@@ -84,7 +85,7 @@ export const listJobs = asyncHandler(async (req, res) => {
 
   if (status && status !== 'all') query.status = status
   if (search) {
-    const regex = new RegExp(search, 'i')
+    const regex = new RegExp(escapeRegex(String(search)), 'i')
     query.$or = [{ title: regex }, { department: regex }, { location: regex }]
   }
 
