@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireEmployeeAuth } from '../middleware/employeeAuth.js'
-import { authLimiter, emailOtpLimiter } from '../middleware/rateLimit.js'
+import { authLimiter, emailOtpLimiter, phoneOtpLimiter, phoneOtpSendLimiter } from '../middleware/rateLimit.js'
 import {
   login,
   phoneLogin,
@@ -27,9 +27,9 @@ import { logout } from '../middleware/authCookie.js'
 
 const router = Router()
 
-router.post('/send-otp', sendPhoneOtp)
-router.post('/verify-otp', verifyPhoneOtp)
-router.post('/verify-phone-widget', verifyPhoneWidget)
+router.post('/send-otp', phoneOtpLimiter, phoneOtpSendLimiter, sendPhoneOtp)
+router.post('/verify-otp', phoneOtpLimiter, verifyPhoneOtp)
+router.post('/verify-phone-widget', phoneOtpLimiter, verifyPhoneWidget)
 router.post('/login', authLimiter, login)
 router.post('/phone-login', authLimiter, phoneLogin)
 router.post('/send-email-otp', emailOtpLimiter, sendEmailOtp)

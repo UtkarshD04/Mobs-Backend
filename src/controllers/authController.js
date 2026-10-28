@@ -9,6 +9,7 @@ import { sendMail } from '../utils/mailer.js'
 import { verifyGoogleToken } from '../utils/googleAuth.js'
 import { sendOtp, verifyOtp, verifyWidgetAccessToken } from '../utils/msg91.js'
 import { issuePhoneToken, checkPhoneToken } from '../utils/phoneToken.js'
+import { isEmployerReviewPhone, employerReviewOtpMatches } from '../utils/reviewLogin.js'
 import { checkEmailToken, EMAIL_RE } from '../utils/emailOtp.js'
 import { getRazorpayClient } from '../config/razorpay.js'
 import { verifyOrderPaymentSignature } from '../utils/razorpaySignature.js'
@@ -294,8 +295,10 @@ export const verifyPhoneWidget = asyncHandler(async (req, res) => {
 // Direct-API OTP for the employer mobile app (the website uses the MSG91 widget
 // above). Same phoneToken shape, so signup/phone-login treat both identically.
 export const sendPhoneOtp = asyncHandler(async (req, res) => {
-  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
   const { phone } = req.body ?? {}
+  // The reserved store-review number never gets an SMS: it accepts a fixed OTP (env.employerReviewLogin).
+  if (isEmployerReviewPhone(phone)) return res.json({ message: 'OTP sent' })
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
   if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim())) {
     return res.status(400).json({ message: 'A valid 10-digit mobile number is required' })
   }
@@ -304,8 +307,12 @@ export const sendPhoneOtp = asyncHandler(async (req, res) => {
 })
 
 export const verifyPhoneOtp = asyncHandler(async (req, res) => {
-  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
   const { phone, otp } = req.body ?? {}
+  if (isEmployerReviewPhone(phone)) {
+    if (!employerReviewOtpMatches(otp)) return res.status(400).json({ message: 'Incorrect or expired OTP' })
+    return res.json({ phoneToken: issuePhoneToken(phone.trim()) })
+  }
+  if (!env.msg91.authKey) return res.status(503).json({ message: 'SMS verification is not configured' })
   if (typeof phone !== 'string' || !PHONE_RE.test(phone.trim()) || typeof otp !== 'string' || !otp.trim()) {
     return res.status(400).json({ message: 'Phone and OTP are required' })
   }

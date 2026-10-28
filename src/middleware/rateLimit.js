@@ -59,6 +59,26 @@ export const emailOtpLimiter = rateLimit({
   store: makeStore('rl:email-otp:'),
 })
 
+// Mobile OTP send/verify (and the website widget's token check). Per IP, to stop a script
+// guessing codes or burning SMS credits; loose enough for many users behind one carrier NAT.
+export const phoneOtpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: 30,
+  ...base,
+  message: { message: 'Too many OTP requests. Please try again in a few minutes.' },
+  store: makeStore('rl:phone-otp:'),
+})
+
+// Every send is a paid SMS — capped per number too, so rotating IPs can't flood one phone.
+export const phoneOtpSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  keyGenerator: (req) => `phone:${typeof req.body?.phone === 'string' ? req.body.phone.trim() : ''}`,
+  ...base,
+  message: { message: 'Too many OTPs sent to this number. Please try again in 15 minutes.' },
+  store: makeStore('rl:phone-otp-send:'),
+})
+
 // Order creation/verification are cheap to spam and directly touch money —
 // capped tighter than the general API limit.
 export const paymentLimiter = rateLimit({

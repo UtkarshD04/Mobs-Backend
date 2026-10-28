@@ -10,12 +10,6 @@ function toMsg91Mobile(phone) {
   return `91${phone.trim()}`
 }
 
-// Fixed test login for the employer app (store review / QA): this one number
-// skips MSG91 entirely and accepts a fixed code. Nothing else is affected.
-const TEST_PHONE = '9000000001'
-const TEST_OTP = '123456'
-const isTestPhone = (phone) => phone.trim() === TEST_PHONE
-
 // Asks MSG91 to generate and text an OTP to the given 10-digit Indian mobile
 // number. MSG91 owns OTP generation/expiry/retry itself — we never see the
 // code, only pass/fail on send and later verify.
@@ -29,7 +23,6 @@ const isTestPhone = (phone) => phone.trim() === TEST_PHONE
 // otp_length is pinned to 6: left out, MSG91 generates a 4-digit code, but
 // both apps' code fields take exactly 6 digits.
 export async function sendOtp(phone) {
-  if (isTestPhone(phone)) return
   if (isFlowOtpEnabled()) return sendFlowOtp(phone.trim())
   const { data } = await axios.post(
     BASE_URL,
@@ -119,7 +112,6 @@ async function verifyFlowOtp(phone, otp) {
 // Any other failure (bad auth key, network) throws so the caller 500s
 // instead of silently treating it as a wrong OTP.
 export async function verifyOtp(phone, otp) {
-  if (isTestPhone(phone)) return otp.trim() === TEST_OTP
   if (isFlowOtpEnabled()) return verifyFlowOtp(phone.trim(), otp.trim())
   try {
     const { data } = await axios.post(

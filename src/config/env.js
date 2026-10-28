@@ -95,6 +95,12 @@ export const env = {
     // App Store review so the reviewer sees (and can test) the Premium purchase button.
     premium: process.env.REVIEW_LOGIN_PREMIUM !== 'false',
   },
+  // Employer-app store review login: this one number skips MSG91 and accepts this fixed code on
+  // the employer side only. Both blank = off. Pick an OTP that isn't guessable.
+  employerReviewLogin: {
+    phone: process.env.EMPLOYER_REVIEW_LOGIN_PHONE ?? '',
+    otp: process.env.EMPLOYER_REVIEW_LOGIN_OTP ?? '',
+  },
   // MSG91 OTP API — https://control.msg91.com. Left blank, mobile OTP
   // verification fails cleanly with a 503 instead of crashing (same
   // no-op pattern as SMTP/VAPID/Razorpay/Google above). templateId is the

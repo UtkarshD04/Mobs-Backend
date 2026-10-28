@@ -34,6 +34,24 @@ export function reviewOtpMatches(otp) {
   return crypto.timingSafeEqual(a, b)
 }
 
+// The employer app's equivalent (env.employerReviewLogin): one reserved number with a fixed
+// code, checked only by the employer auth routes. No account is auto-created for it.
+function isEmployerReviewLoginEnabled() {
+  const { phone, otp } = env.employerReviewLogin
+  return PHONE_RE.test(phone) && /^\d{6}$/.test(otp)
+}
+
+export function isEmployerReviewPhone(phone) {
+  return isEmployerReviewLoginEnabled() && typeof phone === 'string' && phone.trim() === env.employerReviewLogin.phone
+}
+
+export function employerReviewOtpMatches(otp) {
+  if (typeof otp !== 'string') return false
+  const a = crypto.createHash('sha256').update(otp.trim()).digest()
+  const b = crypto.createHash('sha256').update(env.employerReviewLogin.otp).digest()
+  return crypto.timingSafeEqual(a, b)
+}
+
 // Creates (or repairs) the review account. Refuses to touch a real user's account: if the
 // reserved number already belongs to someone else, that is a configuration mistake and
 // nobody gets upgraded to premium by it.
