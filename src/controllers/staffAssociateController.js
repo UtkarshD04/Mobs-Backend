@@ -17,7 +17,7 @@ export const listAssociates = asyncHandler(async (req, res) => {
   if (typeof status === 'string' && ASSOCIATE_STATUSES.includes(status)) query.status = status
   if (typeof search === 'string' && search.trim()) {
     const regex = new RegExp(escapeRegex(search.trim()), 'i')
-    query.$or = [{ companyName: regex }, { contactName: regex }, { email: regex }, { city: regex }, { phone: regex }, { code: regex }]
+    query.$or = [{ companyName: regex }, { contactName: regex }, { email: regex }, { state: regex }, { city: regex }, { phone: regex }, { code: regex }]
   }
 
   const { data, page, limit, total } = await paginate(PlacementAssociate, query, paginationParams(req), { sort: { createdAt: -1 } })
