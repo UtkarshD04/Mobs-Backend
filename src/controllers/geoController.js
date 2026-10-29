@@ -1,7 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { INDIA_STATES } from '../utils/indiaStates.js'
 import { isIndianCoord } from '../utils/jobLocation.js'
-import { searchPlaces, reversePlace, lookupPincode, GeocoderError } from '../utils/geocoder.js'
+import { searchPlaces, reversePlace, lookupPincode, cityPincodes as directoryCityPincodes, GeocoderError } from '../utils/geocoder.js'
 
 // Geocoder failures are expected operational states (provider down / busy / off), not bugs —
 // answer them with a clean message instead of letting the generic error handler log a 500.
@@ -38,4 +38,13 @@ export const pincode = withGeoErrors(async (req, res) => {
   const found = await lookupPincode(pin)
   if (!found) return res.status(404).json({ message: 'No area found for this PIN code.' })
   res.json(found)
+})
+
+// GET /geo/city-pincodes?city=&state= — the city's PIN codes and their postal areas, for the
+// Talent Radar's PIN step (shown alongside the PINs candidates and openings actually carry).
+const CITY_RE = /^[\p{L}][\p{L} .'-]{1,59}$/u
+export const cityPincodes = withGeoErrors(async (req, res) => {
+  const city = clean(req.query.city)
+  if (!CITY_RE.test(city)) return res.status(400).json({ message: 'A city name is required.' })
+  res.json(await directoryCityPincodes({ city, state: clean(req.query.state) }))
 })

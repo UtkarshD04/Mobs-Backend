@@ -76,13 +76,25 @@ export const listJobs = asyncHandler(async (req, res) => {
 })
 
 // Distinct state / city / locality values across this company's jobs — real options for the
-// dashboard's location dropdowns (nothing invented; legacy jobs without details just don't appear).
+// dashboard's location dropdowns (nothing invented). A job saved without structured details
+// still counts under the city in its plain `location` text ("Lucknow, UP" → Lucknow), with no
+// state or locality — otherwise every opening posted that way vanished from the city counts.
 export const jobLocationFacets = asyncHandler(async (req, res) => {
+  const plainCity = { $trim: { input: { $arrayElemAt: [{ $split: [{ $ifNull: ['$location', ''] }, ','] }, 0] } } }
   const rows = await Job.aggregate([
-    { $match: { company: req.company._id, 'locationDetails.state': { $exists: true } } },
+    { $match: { company: req.company._id } },
+    {
+      $project: {
+        status: 1,
+        state: { $ifNull: ['$locationDetails.state', ''] },
+        city: { $ifNull: ['$locationDetails.city', plainCity] },
+        locality: { $ifNull: ['$locationDetails.locality', ''] },
+      },
+    },
+    { $match: { city: { $type: 'string', $ne: '', $not: /^remote$/i } } },
     {
       $group: {
-        _id: { state: '$locationDetails.state', city: '$locationDetails.city', locality: '$locationDetails.locality' },
+        _id: { state: '$state', city: '$city', locality: '$locality' },
         count: { $sum: 1 },
         // Openings still being sourced for (not draft / closed / archived).
         active: { $sum: { $cond: [{ $eq: ['$status', 'sourcing'] }, 1, 0] } },

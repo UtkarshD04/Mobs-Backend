@@ -21,12 +21,12 @@ export class GeocoderError extends Error {
   }
 }
 
-function cached(key, fn) {
+function cached(key, fn, ttlMs = CACHE_TTL_MS) {
   const hit = cache.get(key)
   if (hit && hit.exp > Date.now()) return Promise.resolve(hit.value)
   return fn().then((value) => {
     if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value)
-    cache.set(key, { value, exp: Date.now() + CACHE_TTL_MS })
+    cache.set(key, { value, exp: Date.now() + ttlMs })
     return value
   })
 }
@@ -120,4 +120,45 @@ export function lookupPincode(pin) {
       throw new GeocoderError('PIN code lookup is unavailable right now.')
     }
   })
+}
+
+// India Post names many offices "Aliganj (Lucknow)"; the city in brackets is noise in a list
+// that is already scoped to that city.
+const officeArea = (name) => String(name ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim()
+
+// PIN codes of a city from the India Post directory, each with the post-office areas it
+// covers. The directory is searched by office name, so this lists the city's named offices
+// rather than every PIN in the district — a starting map of the city, not a census. A state,
+// when given, drops same-named offices elsewhere in India. The directory changes rarely, so
+// results are kept for a day.
+const CITY_PIN_TTL_MS = 24 * 60 * 60 * 1000
+export function cityPincodes({ city, state }) {
+  const wantState = state ? canonicalState(state) : ''
+  return cached(
+    `cp:${city.toLowerCase()}|${wantState}`,
+    async () => {
+      const base = env.geocoder.pincodeApiUrl.replace(/\/pincode$/, '')
+      let entry
+      try {
+        const r = await axios.get(`${base}/postoffice/${encodeURIComponent(city)}`, { timeout: 8000 })
+        entry = Array.isArray(r.data) ? r.data[0] : null
+      } catch {
+        throw new GeocoderError('PIN code directory is unavailable right now.')
+      }
+      if (!entry || entry.Status !== 'Success' || !entry.PostOffice?.length) return []
+      const byPin = new Map()
+      for (const o of entry.PostOffice) {
+        const pin = String(o.Pincode ?? '')
+        if (!/^[1-9]\d{5}$/.test(pin)) continue
+        const officeState = canonicalState(o.State)
+        if (wantState && officeState !== wantState) continue
+        const row = byPin.get(pin) ?? { pincode: pin, district: o.District ?? '', state: officeState, areas: [] }
+        const area = officeArea(o.Name)
+        if (area && !row.areas.includes(area)) row.areas.push(area)
+        byPin.set(pin, row)
+      }
+      return [...byPin.values()].sort((a, b) => a.pincode.localeCompare(b.pincode)).slice(0, 200)
+    },
+    CITY_PIN_TTL_MS
+  )
 }
