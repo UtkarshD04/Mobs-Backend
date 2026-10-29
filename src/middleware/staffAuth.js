@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import StaffUser from '../models/StaffUser.js'
+import { issuedBeforePasswordChange } from '../utils/sessionRevocation.js'
 
 export const requireStaffAuth = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || ''
@@ -21,6 +22,7 @@ export const requireStaffAuth = asyncHandler(async (req, res, next) => {
   const staff = await StaffUser.findById(payload.sub)
   if (!staff) return res.status(401).json({ message: 'Staff account no longer exists' })
   if (staff.status === 'disabled') return res.status(401).json({ message: 'This staff account has been disabled' })
+  if (issuedBeforePasswordChange(payload, staff)) return res.status(401).json({ message: 'Invalid or expired token' })
 
   req.staff = staff
   next()

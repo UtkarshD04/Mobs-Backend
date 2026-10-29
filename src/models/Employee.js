@@ -116,6 +116,8 @@ const employeeSchema = new Schema(
     lastActiveAt: { type: Date, default: null },
     resetPasswordToken: { type: String, default: null, select: false },
     resetPasswordExpires: { type: Date, default: null, select: false },
+    // Login tokens issued before this are refused (see utils/sessionRevocation.js).
+    passwordChangedAt: { type: Date, default: null },
 
     pushTokens: { type: [String], default: [] },
     webPushSubscriptions: {

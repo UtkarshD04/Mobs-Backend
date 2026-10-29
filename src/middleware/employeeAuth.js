@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import Employee from '../models/Employee.js'
+import { issuedBeforePasswordChange } from '../utils/sessionRevocation.js'
 
 export const requireEmployeeAuth = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || ''
@@ -25,6 +26,7 @@ export const requireEmployeeAuth = asyncHandler(async (req, res, next) => {
   const employee = await Employee.findById(payload.sub).select('+resume.s3Key +resumeHistory.s3Key +photo.s3Key +passwordHash')
   if (!employee) return res.status(401).json({ message: 'Employee no longer exists' })
   if (employee.status === 'suspended') return res.status(403).json({ message: 'This account has been suspended. Contact Mzobs support for help.' })
+  if (issuedBeforePasswordChange(payload, employee)) return res.status(401).json({ message: 'Invalid or expired token' })
 
   req.employee = employee
   next()

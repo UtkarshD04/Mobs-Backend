@@ -14,7 +14,7 @@ await mongoose.connect(process.env.MONGO_URI)
 const passwordHash = await bcrypt.hash(newPassword, 10)
 const result = await mongoose.connection
   .collection('employees')
-  .updateOne({ email: email.toLowerCase().trim() }, { $set: { passwordHash } })
+  .updateOne({ email: email.toLowerCase().trim() }, { $set: { passwordHash, passwordChangedAt: new Date() } })
 
 console.log('matched:', result.matchedCount, 'modified:', result.modifiedCount)
 await mongoose.disconnect()

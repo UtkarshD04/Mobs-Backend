@@ -125,6 +125,7 @@ export const resetTeammatePassword = asyncHandler(async (req, res) => {
   if (!staff) return res.status(404).json({ message: 'Staff account not found' })
 
   staff.passwordHash = await bcrypt.hash(password, 10)
+  staff.passwordChangedAt = new Date()
   await staff.save()
 
   await logStaffActivity(`${req.staff.name} reset ${staff.name}'s password`, 'gold')

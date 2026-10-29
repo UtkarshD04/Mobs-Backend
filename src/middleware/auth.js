@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { env } from '../config/env.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import User from '../models/User.js'
+import { issuedBeforePasswordChange } from '../utils/sessionRevocation.js'
 
 export const requireAuth = asyncHandler(async (req, res, next) => {
   // Already authenticated earlier in this request (the employer access gate
@@ -25,6 +26,7 @@ export const requireAuth = asyncHandler(async (req, res, next) => {
   if (!user || !user.company) return res.status(401).json({ message: 'User no longer exists' })
   if (user.status === 'disabled') return res.status(403).json({ message: 'This account has been disabled. Contact Mzobs support for help.' })
   if (user.company.blocked) return res.status(403).json({ message: 'This company account has been blocked. Contact Mzobs support for help.' })
+  if (issuedBeforePasswordChange(payload, user)) return res.status(401).json({ message: 'Invalid or expired token' })
 
   req.user = user
   req.company = user.company

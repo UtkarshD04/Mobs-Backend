@@ -84,6 +84,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   if (!staff) return res.status(400).json({ message: 'This reset link is invalid or has expired' })
 
   staff.passwordHash = await bcrypt.hash(password, 10)
+  staff.passwordChangedAt = new Date()
   staff.resetPasswordToken = null
   staff.resetPasswordExpires = null
   await staff.save()
