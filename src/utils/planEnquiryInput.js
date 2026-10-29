@@ -1,4 +1,5 @@
 import { PLAN_ENQUIRY_SOURCES } from '../models/PlanEnquiry.js'
+import { isValidPhone, MOBILE_ERROR } from './indianMobile.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const REQUIRED = ['name', 'companyName', 'phone', 'email']
@@ -25,6 +26,6 @@ export function parsePlanEnquiryInput(body = {}) {
 
   if (REQUIRED.some((k) => !data[k])) return { error: 'Please fill in all the fields' }
   if (!EMAIL_RE.test(data.email)) return { error: 'Enter a valid email address' }
-  if (data.phone.replace(/\D/g, '').length < 10) return { error: 'Enter a 10-digit phone number' }
+  if (!isValidPhone(data.phone)) return { error: MOBILE_ERROR }
   return { data }
 }
