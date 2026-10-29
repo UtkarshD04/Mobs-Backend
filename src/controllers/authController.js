@@ -21,6 +21,7 @@ import { deleteEmployerAccount, LastAdminError } from '../utils/employerAccountD
 import { issueHandoffCode, consumeHandoffCode } from '../utils/handoffCode.js'
 import { parseSignupGst } from '../utils/gstVerification.js'
 import { checkSignupGst, logGstAttempt } from './companyController.js'
+import { GUEST_RECEIPT_PREFIX } from './employerSubscriptionController.js'
 import User from '../models/User.js'
 import Company from '../models/Company.js'
 import EmployerSubscription from '../models/EmployerSubscription.js'
@@ -427,12 +428,35 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
   const payment = await Payment.findOne({ razorpayOrderId: orderId, purpose: 'employer_subscription' })
   if (!payment) return res.status(404).json({ message: 'Order not found' })
 
-  // Already claimed — either a retry of this same call (payment succeeded,
-  // the response was lost/interrupted before reaching the client) or an
-  // orderId that was never a guest order to begin with. Phone is unverified
-  // here, so this is a courtesy match for retries, not an access control —
-  // it hands back a token only when the typed phone happens to match.
+  // An order id alone is not a secret (it shows up on receipts and in the
+  // webhook), so every call — first claim or retry, and even when the
+  // webhook already marked the payment paid — must carry the checkout
+  // signature only the actual payer's browser received. A bad signature is
+  // just refused: it says nothing about the real payment, so it must not
+  // mark the order failed (that would let anyone block the payer's signup).
+  if (razorpay_order_id) {
+    if (!razorpay_payment_id || !razorpay_signature) return res.status(400).json({ message: 'Missing payment details' })
+    if (!verifyOrderPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
+      return res.status(400).json({ message: 'Payment verification failed' })
+    }
+    if (payment.razorpayPaymentId && payment.razorpayPaymentId !== razorpay_payment_id) {
+      return res.status(400).json({ message: 'Payment verification failed' })
+    }
+  } else {
+    // Dev-only mock path, mirrors confirmMockSubscriptionPayment — only
+    // ever touches a payment actually flagged isMock, hard-blocked in prod.
+    if (process.env.NODE_ENV === 'production') return res.status(503).json({ message: 'Mock payments are disabled in production' })
+    if (!payment.isMock) return res.status(404).json({ message: 'Mock order not found' })
+  }
+
+  // Already claimed — a retry of this same call by the payer (payment
+  // succeeded, the response was lost before reaching the client). Only a
+  // guest order can be picked up here; a logged-in employer's subscription
+  // order already belongs to an account and is never handed out.
   if (payment.company) {
+    if (!payment.receipt?.startsWith(GUEST_RECEIPT_PREFIX)) {
+      return res.status(409).json({ message: 'This order is not available for guest checkout.' })
+    }
     const existingUser = await User.findOne({ company: payment.company, phone: phone.trim() }).populate('company')
     if (existingUser) return res.status(201).json(authResponse(existingUser, existingUser.company))
     return res.status(409).json({ message: 'This order is not available for guest checkout.' })
@@ -440,13 +464,7 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
 
   if (payment.status !== 'paid') {
     if (razorpay_order_id) {
-      if (!razorpay_payment_id || !razorpay_signature) return res.status(400).json({ message: 'Missing payment details' })
       if (payment.status !== 'created') return res.status(400).json({ message: 'This order can no longer be verified' })
-      if (!verifyOrderPaymentSignature(razorpay_order_id, razorpay_payment_id, razorpay_signature)) {
-        payment.status = 'failed'
-        await payment.save()
-        return res.status(400).json({ message: 'Payment verification failed' })
-      }
       const captured = await getRazorpayClient().payments.fetch(razorpay_payment_id)
       if (captured.order_id !== razorpay_order_id || captured.status !== 'captured') {
         payment.status = 'failed'
@@ -456,10 +474,6 @@ export const guestSubscribeSignup = asyncHandler(async (req, res) => {
       payment.razorpayPaymentId = razorpay_payment_id
       payment.razorpaySignature = razorpay_signature
     } else {
-      // Dev-only mock path, mirrors confirmMockSubscriptionPayment — only
-      // ever touches a payment actually flagged isMock, hard-blocked in prod.
-      if (process.env.NODE_ENV === 'production') return res.status(503).json({ message: 'Mock payments are disabled in production' })
-      if (!payment.isMock) return res.status(404).json({ message: 'Mock order not found' })
       payment.razorpayPaymentId = `mock_payment_${Date.now()}`
     }
     payment.status = 'paid'
@@ -562,6 +576,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   if (!user) return res.status(400).json({ message: 'This reset link is invalid or has expired' })
 
   user.passwordHash = await bcrypt.hash(password, 10)
+  user.passwordChangedAt = new Date()
   user.resetPasswordToken = null
   user.resetPasswordExpires = null
   await user.save()

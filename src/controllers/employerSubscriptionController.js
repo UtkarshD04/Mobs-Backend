@@ -58,6 +58,10 @@ function buildMockOrder(amountPaise, receipt) {
   return null
 }
 
+// Marks a Payment as a guest-checkout order — guestSubscribeSignup only ever
+// hands out an account for orders carrying it.
+export const GUEST_RECEIPT_PREFIX = 'empsub_guest_'
+
 // POST /api/employer/subscription/guest-order — same as createSubscriptionOrder
 // below, but for a visitor who doesn't have a company/account yet (the
 // "verify phone, pay, account is created for you" flow off the public
@@ -70,7 +74,7 @@ export const createGuestSubscriptionOrder = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Unknown plan' })
   }
   const pricing = getEmployerPlanPricing(planCode)
-  const receipt = `empsub_guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const receipt = `${GUEST_RECEIPT_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   let order = buildMockOrder(pricing.totalAmountPaise, receipt)
   if (!order) {
