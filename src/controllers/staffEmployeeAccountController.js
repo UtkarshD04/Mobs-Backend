@@ -1,4 +1,5 @@
 import { escapeRegex } from '../utils/jobQueryFilters.js'
+import { isValidPhone, MOBILE_ERROR } from '../utils/indianMobile.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { asyncHandler } from '../utils/asyncHandler.js'
@@ -82,6 +83,8 @@ export const createEmployee = asyncHandler(async (req, res) => {
   if (!name || !email || !graduation) {
     return res.status(400).json({ message: 'name, email and graduation are required' })
   }
+
+  if (phone && !isValidPhone(phone)) return res.status(400).json({ message: MOBILE_ERROR })
 
   const normalizedEmail = email.toLowerCase().trim()
   const existing = await Employee.findOne({ email: normalizedEmail })
