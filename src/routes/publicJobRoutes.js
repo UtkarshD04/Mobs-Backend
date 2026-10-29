@@ -15,6 +15,8 @@ const router = Router()
 
 // Landing-page aggregates: identical for every visitor, so a minute of caching cuts DB load a lot.
 const cached = responseCache(60)
+// The job list changes more often, so it gets a shorter window.
+const cachedList = responseCache(30)
 
 // '/suggestions', '/categories', '/hot-cities' and '/hiring-companies' must
 // come before '/:id' — otherwise Express would match them as an :id param
@@ -28,6 +30,6 @@ router.get('/platform-stats', cached, getPublicPlatformStats)
 // candidate-visible jobs (see getJobFacets).
 router.get('/facets', cached, getJobFacets)
 router.get('/:id', getLatestJob)
-router.get('/', listLatestJobs)
+router.get('/', cachedList, listLatestJobs)
 
 export default router

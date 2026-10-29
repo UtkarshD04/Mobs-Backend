@@ -5,6 +5,7 @@ import { POPULAR_JOB_TITLES, POPULAR_CITIES, POPULAR_SKILLS } from '../config/jo
 import { HOT_CITIES, aggregateHotCities } from '../utils/hotCities.js'
 import { aggregateAllCompanies } from '../utils/hiringCompanies.js'
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
+import { memoizeTtl } from '../utils/memoizeTtl.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 import Employee from '../models/Employee.js'
@@ -155,36 +156,57 @@ export const getLatestJob = asyncHandler(async (req, res) => {
   res.json(toLatestJobSummary(job))
 })
 
+// The autocomplete runs on every keystroke, but these whole-collection
+// aggregations don't depend on what was typed (matching happens in
+// buildSuggestions), so each one is computed at most once a minute per
+// process and shared by every visitor.
+const SUGGESTION_CACHE_MS = 60 * 1000
+
 // Counted, grouped values across every candidate-visible, publicly-listed
 // job — the raw material for both the location-suggestion list and the
 // title/skill/company suggestion groups below.
-function groupValueCounts(field) {
-  return Job.aggregate([
-    { $match: publicJobFilter() },
-    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-  ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
-}
+const groupValueCounts = memoizeTtl(
+  (field) =>
+    Job.aggregate([
+      { $match: publicJobFilter() },
+      { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count }))),
+  SUGGESTION_CACHE_MS
+)
 
-function groupSkillCounts() {
-  return Job.aggregate([
-    { $match: publicJobFilter() },
-    { $unwind: '$skills' },
-    { $group: { _id: '$skills', count: { $sum: 1 } } },
-  ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
-}
+const groupSkillCounts = memoizeTtl(
+  () =>
+    Job.aggregate([
+      { $match: publicJobFilter() },
+      { $unwind: '$skills' },
+      { $group: { _id: '$skills', count: { $sum: 1 } } },
+    ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count }))),
+  SUGGESTION_CACHE_MS
+)
 
 // Real, live companies only — no curated padding here (a "safe public
 // company" list would just be fabricated employer names), ranked the same
 // exact/starts-with/contains way as everything else.
-function groupCompanyCounts() {
-  return Job.aggregate([
-    { $match: publicJobFilter() },
-    { $group: { _id: '$company', count: { $sum: 1 } } },
-    { $lookup: { from: 'companies', localField: '_id', foreignField: '_id', as: 'company' } },
-    { $unwind: '$company' },
-    { $project: { _id: 0, value: '$company.name', id: '$_id', count: 1 } },
-  ])
-}
+const groupCompanyCounts = memoizeTtl(
+  () =>
+    Job.aggregate([
+      { $match: publicJobFilter() },
+      { $group: { _id: '$company', count: { $sum: 1 } } },
+      { $lookup: { from: 'companies', localField: '_id', foreignField: '_id', as: 'company' } },
+      { $unwind: '$company' },
+      { $project: { _id: 0, value: '$company.name', id: '$_id', count: 1 } },
+    ]),
+  SUGGESTION_CACHE_MS
+)
+
+const countRemoteJobs = memoizeTtl(
+  () =>
+    Job.countDocuments({
+      ...publicJobFilter(),
+      $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
+    }),
+  SUGGESTION_CACHE_MS
+)
 
 // Job-title/skill/company and city/location autocomplete for the Landing
 // Frontend's home-page search bar. Real counts always come from
@@ -201,13 +223,7 @@ export const getPublicJobSuggestions = asyncHandler(async (req, res) => {
   const limit = Math.min(MAX_SUGGESTIONS, Math.max(1, Number.parseInt(req.query.limit, 10) || MAX_SUGGESTIONS))
 
   if (type === 'location') {
-    const [cityRows, remoteCount] = await Promise.all([
-      groupValueCounts('location'),
-      Job.countDocuments({
-        ...publicJobFilter(),
-        $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
-      }),
-    ])
+    const [cityRows, remoteCount] = await Promise.all([groupValueCounts('location'), countRemoteJobs()])
 
     // "Remote" is a fixed, prominent option (not part of the curated city
     // list) — it only drops out of the results if the typed text plainly

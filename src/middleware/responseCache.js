@@ -3,6 +3,9 @@
 // reverse proxy / CDN absorb repeat hits before they reach any instance. Per-process, so
 // data can be up to `ttlSeconds` stale — only use it where that is fine.
 const MAX_ENTRIES = 500
+// List endpoints carry their pagination on headers (utils/paginate.js), so a cached
+// copy has to replay them too or a HIT would look like an unpaginated list.
+const KEPT_HEADERS = ['X-Total-Count', 'X-Page', 'X-Limit']
 
 export function responseCache(ttlSeconds) {
   const store = new Map()
@@ -13,13 +16,15 @@ export function responseCache(ttlSeconds) {
     const hit = store.get(key)
     if (hit && hit.expires > Date.now()) {
       res.set('X-Cache', 'HIT')
+      for (const [name, value] of hit.headers) res.set(name, value)
       return res.status(200).type('application/json').send(hit.body)
     }
     const json = res.json.bind(res)
     res.json = (body) => {
       if (res.statusCode === 200) {
         if (store.size >= MAX_ENTRIES) store.delete(store.keys().next().value)
-        store.set(key, { body: JSON.stringify(body), expires: Date.now() + ttlSeconds * 1000 })
+        const headers = KEPT_HEADERS.filter((name) => res.get(name) !== undefined).map((name) => [name, res.get(name)])
+        store.set(key, { body: JSON.stringify(body), headers, expires: Date.now() + ttlSeconds * 1000 })
       } else {
         res.removeHeader('Cache-Control')
       }

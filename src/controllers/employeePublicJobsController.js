@@ -5,6 +5,7 @@ import { parseJobFilters, buildJobQuery, buildSortStage, escapeRegex, publicJobF
 import { isValidCoord, nearbyJobsPage } from '../utils/geo.js'
 import { matchRank, buildSuggestions, MAX_SUGGESTIONS } from '../utils/jobSuggestions.js'
 import { POPULAR_JOB_TITLES, POPULAR_CITIES } from '../config/jobSuggestionsFallback.js'
+import { memoizeTtl } from '../utils/memoizeTtl.js'
 import Job from '../models/Job.js'
 import Company from '../models/Company.js'
 import Application from '../models/Application.js'
@@ -202,11 +203,27 @@ export const getJobFacets = asyncHandler(async (req, res) => {
   })
 })
 
-const groupValueCounts = (field) =>
-  Job.aggregate([
-    { $match: publicJobFilter() },
-    { $group: { _id: `$${field}`, count: { $sum: 1 } } },
-  ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count })))
+// Same once-a-minute sharing as the landing page's autocomplete (publicJobsController.js):
+// these counts don't depend on what was typed, only on the live job set.
+const SUGGESTION_CACHE_MS = 60 * 1000
+
+const groupValueCounts = memoizeTtl(
+  (field) =>
+    Job.aggregate([
+      { $match: publicJobFilter() },
+      { $group: { _id: `$${field}`, count: { $sum: 1 } } },
+    ]).then((rows) => rows.filter((r) => r._id).map((r) => ({ value: r._id, count: r.count }))),
+  SUGGESTION_CACHE_MS
+)
+
+const countRemoteJobs = memoizeTtl(
+  () =>
+    Job.countDocuments({
+      ...publicJobFilter(),
+      $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
+    }),
+  SUGGESTION_CACHE_MS
+)
 
 // Job-title and city/location autocomplete. Real counts always come from
 // candidate-visible jobs only; the curated fallback (Backend/src/config/
@@ -225,13 +242,7 @@ export const getJobSuggestions = asyncHandler(async (req, res) => {
     return res.json({ type, query, items })
   }
 
-  const [cityRows, remoteCount] = await Promise.all([
-    groupValueCounts('location'),
-    Job.countDocuments({
-      ...publicJobFilter(),
-      $or: [{ workMode: 'Remote' }, { location: /^remote$/i }],
-    }),
-  ])
+  const [cityRows, remoteCount] = await Promise.all([groupValueCounts('location'), countRemoteJobs()])
 
   const remoteRelevant = matchRank('Remote', query) !== null
   const cityItems = buildSuggestions({ liveRows: cityRows, curatedValues: POPULAR_CITIES, query, limit: remoteRelevant ? limit - 1 : limit })
