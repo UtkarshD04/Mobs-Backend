@@ -2,6 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 import { serializeResumeSubdoc, serializeResumeHistory, photoUrlOf } from '../utils/resumeAccess.js'
 import { deleteEmployeeAccount } from '../utils/accountDeletion.js'
 import { checkPhoneToken } from '../utils/phoneToken.js'
+import Candidate from '../models/Candidate.js'
 
 const PROFILE_FIELDS = [
   'name',
@@ -62,6 +63,12 @@ function serializeProfile(employee) {
   return json
 }
 
+// Recruiters see the Candidate copy of the employee, so a renamed profile must
+// carry over to every candidate record created from it.
+async function syncCandidateName(employee) {
+  await Candidate.updateMany({ employee: employee._id, name: { $ne: employee.name } }, { $set: { name: employee.name } })
+}
+
 export const getProfile = asyncHandler(async (req, res) => {
   res.json(serializeProfile(req.employee))
 })
@@ -84,6 +91,7 @@ export const updateProfile = asyncHandler(async (req, res) => {
 
   Object.assign(req.employee, input)
   await req.employee.save()
+  if (input.name !== undefined) await syncCandidateName(req.employee)
 
   res.json(serializeProfile(req.employee))
 })
@@ -151,6 +159,7 @@ export const completeProfile = asyncHandler(async (req, res) => {
   employee.profileSetupPending = false
   employee.profileCompletedAt = employee.profileCompletedAt ?? new Date()
   await employee.save()
+  if (input.name !== undefined) await syncCandidateName(employee)
 
   res.json(serializeProfile(employee))
 })
