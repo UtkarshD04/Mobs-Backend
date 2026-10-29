@@ -75,6 +75,9 @@ export const env = {
   // cluster worker / server instance, so limits are shared instead of
   // multiplied per-process.
   redisUrl: process.env.REDIS_URL ?? '',
+  // Shared secret that lets server-to-server callers (the landing site's SSR, a load test)
+  // skip the per-IP API and login limits — see middleware/rateLimit.js. Blank = off.
+  rateLimitBypassKey: process.env.RATE_LIMIT_BYPASS_KEY ?? '',
   // OAuth Web Client ID from Google Cloud Console — must match the one the
   // frontend's GoogleOAuthProvider uses, since the backend checks it as the
   // token's `aud` claim. Left blank, "Continue with Google" fails cleanly

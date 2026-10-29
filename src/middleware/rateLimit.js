@@ -1,6 +1,27 @@
+import crypto from 'node:crypto'
 import rateLimit from 'express-rate-limit'
 import { RedisStore } from 'rate-limit-redis'
+import { env } from '../config/env.js'
 import { getRedisClient, isRedisConfigured } from '../config/redis.js'
+
+// Server-to-server callers share one IP, so a per-IP limit caps all of their traffic at
+// once: the landing site's SSR job pages (every visitor and crawler funnels through it)
+// would start answering 503 after a few hundred page views. A request carrying
+// RATE_LIMIT_BYPASS_KEY skips the general API and login limits — never the SMS/OTP,
+// payment or GST ones, where each request costs money. The key lives only in server
+// env (never a VITE_ var) and is ignored unless it is at least 32 characters.
+export const RATE_LIMIT_BYPASS_HEADER = 'x-rate-limit-bypass'
+const MIN_BYPASS_KEY_LENGTH = 32
+
+export function hasRateLimitBypass(req) {
+  const key = env.rateLimitBypassKey
+  if (!key || key.length < MIN_BYPASS_KEY_LENGTH) return false
+  const sent = req.headers[RATE_LIMIT_BYPASS_HEADER]
+  if (typeof sent !== 'string') return false
+  const a = crypto.createHash('sha256').update(sent).digest()
+  const b = crypto.createHash('sha256').update(key).digest()
+  return crypto.timingSafeEqual(a, b)
+}
 
 // Shares one limit across every PM2 cluster worker / server instance once
 // REDIS_URL is set. Falls back to express-rate-limit's own in-memory store
@@ -23,6 +44,7 @@ export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
   ...base,
+  skip: hasRateLimitBypass,
   message: { message: 'Too many attempts. Please try again later.' },
   store: makeStore('rl:auth:'),
 })
@@ -35,7 +57,7 @@ const PUSH_PATH = /^\/employee\/push(\/|$)/
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
-  skip: (req) => PUSH_PATH.test(req.path),
+  skip: (req) => PUSH_PATH.test(req.path) || hasRateLimitBypass(req),
   ...base,
   message: { message: 'Too many requests. Please slow down.' },
   store: makeStore('rl:api:'),
