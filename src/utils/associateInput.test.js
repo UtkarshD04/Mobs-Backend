@@ -8,7 +8,7 @@ const valid = {
   email: 'rao@example.com',
   phone: '98765 43210',
   city: 'Kanpur',
-  cityType: 'Small city / town',
+  state: 'Uttar Pradesh',
   about: 'We place freshers in sales and support roles.',
 }
 
@@ -25,10 +25,10 @@ describe('parseAssociateInput', () => {
     assert.match(parseAssociateInput({}).error, /required/)
   })
 
-  test('rejects a bad email, a short phone and an unknown city type', () => {
+  test('rejects a bad email, a short phone and an unknown state', () => {
     assert.match(parseAssociateInput({ ...valid, email: 'nope' }).error, /email/)
     assert.match(parseAssociateInput({ ...valid, phone: '12345' }).error, /mobile/)
-    assert.match(parseAssociateInput({ ...valid, cityType: 'Village' }).error, /city/)
+    assert.match(parseAssociateInput({ ...valid, state: 'Atlantis' }).error, /state/)
   })
 
   test('accepts only real Indian mobile numbers', () => {
