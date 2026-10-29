@@ -10,8 +10,10 @@ const placementAssociateSchema = new Schema(
     contactName: { type: String, required: true, trim: true, maxlength: 120 },
     email: { type: String, required: true, trim: true, lowercase: true, maxlength: 200 },
     phone: { type: String, required: true, trim: true, maxlength: 20 },
+    // Older requests have no state and carry a cityType instead; new ones send state + city.
+    state: { type: String, trim: true, maxlength: 100, default: '' },
     city: { type: String, required: true, trim: true, maxlength: 100 },
-    cityType: { type: String, enum: CITY_TYPES, required: true },
+    cityType: { type: String, enum: CITY_TYPES },
     website: { type: String, trim: true, maxlength: 300, default: '' },
     about: { type: String, required: true, trim: true, maxlength: 3000 },
     // Issued once, the first time the associate is marked Onboarded (see staffAssociateController) — never changes after that.
