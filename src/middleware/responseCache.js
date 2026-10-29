@@ -43,7 +43,11 @@ export function responseCache(ttlSeconds) {
     if (pending && now - pending.startedAt < REFRESH_TIMEOUT_MS) {
       if (hit && now - hit.expires < maxStaleMs) return send(res, hit, 'STALE')
       const giveUp = new Promise((resolve) => setTimeout(resolve, REFRESH_TIMEOUT_MS - (now - pending.startedAt), null).unref())
-      return Promise.race([pending.promise, giveUp]).then((entry) => (entry ? send(res, entry, 'HIT') : next()))
+      // .catch(next): an error here must reach the error handler — left unhandled, a
+      // rejected promise takes the whole worker process down.
+      return Promise.race([pending.promise, giveUp])
+        .then((entry) => (entry ? send(res, entry, 'HIT') : next()))
+        .catch(next)
     }
 
     // This request refreshes the entry; settle() hands its result to everyone waiting.
