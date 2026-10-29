@@ -10,7 +10,7 @@ import { logger } from './config/logger.js'
 import mongoose from 'mongoose'
 import { lifecycle } from './config/lifecycle.js'
 import { getRedisClient, isRedisConfigured } from './config/redis.js'
-import { loadShed } from './middleware/loadShed.js'
+import { loadShed, eventLoopLagMs } from './middleware/loadShed.js'
 import { apiLimiter } from './middleware/rateLimit.js'
 import routes from './routes/index.js'
 import fileAccessRoutes from './routes/fileAccessRoutes.js'
@@ -49,9 +49,17 @@ if (env.isProduction) {
 }
 
 // Lets you see which instance/worker answered (verify the load balancer is spreading traffic).
+// Server-Timing is the time this process spent on the request, so a slow response can be
+// split into "the server was slow" vs "the network / proxy / client was".
 const instanceId = `${process.env.HOSTNAME ?? 'local'}:${process.pid}`
 app.use((req, res, next) => {
   res.set('X-Instance', instanceId)
+  const start = process.hrtime.bigint()
+  const writeHead = res.writeHead
+  res.writeHead = function (...args) {
+    if (!res.headersSent) res.setHeader('Server-Timing', `app;dur=${(Number(process.hrtime.bigint() - start) / 1e6).toFixed(1)}`)
+    return writeHead.apply(this, args)
+  }
   next()
 })
 
@@ -71,7 +79,8 @@ app.get('/ready', async (req, res) => {
     }
   }
   const ready = Object.values(checks).every(Boolean)
-  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'degraded', checks })
+  // eventLoopLagMs well above ~50 means this process is saturated (CPU-bound), not just busy.
+  res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'degraded', checks, eventLoopLagMs: Math.round(eventLoopLagMs()) })
 })
 
 app.use(loadShed)
