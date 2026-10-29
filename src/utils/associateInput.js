@@ -1,4 +1,5 @@
 import { CITY_TYPES } from '../models/PlacementAssociate.js'
+import { isValidPhone, MOBILE_ERROR } from './indianMobile.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const REQUIRED = ['companyName', 'contactName', 'email', 'phone', 'city', 'cityType', 'about']
@@ -21,7 +22,7 @@ export function parseAssociateInput(body = {}) {
 
   if (REQUIRED.some((k) => !data[k])) return { error: 'Please fill in all the required fields' }
   if (!EMAIL_RE.test(data.email)) return { error: 'Enter a valid email address' }
-  if (data.phone.replace(/\D/g, '').length < 10) return { error: 'Enter a 10-digit phone number' }
+  if (!isValidPhone(data.phone)) return { error: MOBILE_ERROR }
   if (!CITY_TYPES.includes(data.cityType)) return { error: 'Choose whether your city is a large city or a small city / town' }
   return { data }
 }

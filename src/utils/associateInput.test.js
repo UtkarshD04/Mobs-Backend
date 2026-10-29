@@ -27,8 +27,13 @@ describe('parseAssociateInput', () => {
 
   test('rejects a bad email, a short phone and an unknown city type', () => {
     assert.match(parseAssociateInput({ ...valid, email: 'nope' }).error, /email/)
-    assert.match(parseAssociateInput({ ...valid, phone: '12345' }).error, /phone/)
+    assert.match(parseAssociateInput({ ...valid, phone: '12345' }).error, /mobile/)
     assert.match(parseAssociateInput({ ...valid, cityType: 'Village' }).error, /city/)
+  })
+
+  test('accepts only real Indian mobile numbers', () => {
+    for (const phone of ['9876543210', '98765 43210', '98765-43210', '+14155550123', '+971501234567']) assert.ok(parseAssociateInput({ ...valid, phone }).data, phone)
+    for (const phone of ['+1415', '+0123456789', '+91 98765 43210', '09876543210', '5876543210', '0000000000', '98765432101', '98765abcde', '1234567890']) assert.match(parseAssociateInput({ ...valid, phone }).error, /mobile/, phone)
   })
 
   test('ignores non-string values instead of throwing', () => {
