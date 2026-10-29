@@ -1,3 +1,5 @@
+import { gzipSync } from 'node:zlib'
+
 // Short-lived in-process cache for anonymous, read-only endpoints that run heavy
 // aggregations on every landing-page view. Also sets Cache-Control so browsers and the
 // reverse proxy / CDN absorb repeat hits before they reach any instance. Per-process, so
@@ -16,12 +18,29 @@ const KEPT_HEADERS = ['X-Total-Count', 'X-Page', 'X-Limit']
 // A refresh running longer than this is treated as stuck: callers stop waiting on it and
 // the next request starts a new one.
 const REFRESH_TIMEOUT_MS = 10 * 1000
+// Same cut-off the compression middleware uses: smaller bodies aren't worth gzipping.
+const GZIP_MIN_BYTES = 1024
 
-function send(res, entry, cacheStatus) {
+// Cached bodies are gzipped once, when stored. Leaving it to the compression middleware
+// meant a fresh zlib stream (and its ~256 KB of buffers) for every single HIT — under a
+// few hundred requests a second that queued on libuv's small thread pool and made a
+// cached list several times slower than /health. The middleware leaves a response that
+// already has Content-Encoding alone.
+function acceptsGzip(req) {
+  return /\bgzip\b(?!;\s*q=0(\.0+)?\b)/i.test(req.headers['accept-encoding'] || '')
+}
+
+function send(req, res, entry, cacheStatus) {
   if (res.headersSent) return
   res.set('X-Cache', cacheStatus)
+  res.vary('Accept-Encoding')
   for (const [name, value] of entry.headers) res.set(name, value)
-  res.status(200).type('application/json').send(entry.body)
+  res.status(200).type('application/json')
+  if (entry.gzip && acceptsGzip(req)) {
+    res.set('Content-Encoding', 'gzip')
+    return res.send(entry.gzip)
+  }
+  res.send(entry.body)
 }
 
 export function responseCache(ttlSeconds) {
@@ -37,16 +56,16 @@ export function responseCache(ttlSeconds) {
     const key = req.originalUrl
     const now = Date.now()
     const hit = store.get(key)
-    if (hit && hit.expires > now) return send(res, hit, 'HIT')
+    if (hit && hit.expires > now) return send(req, res, hit, 'HIT')
 
     const pending = refreshing.get(key)
     if (pending && now - pending.startedAt < REFRESH_TIMEOUT_MS) {
-      if (hit && now - hit.expires < maxStaleMs) return send(res, hit, 'STALE')
+      if (hit && now - hit.expires < maxStaleMs) return send(req, res, hit, 'STALE')
       const giveUp = new Promise((resolve) => setTimeout(resolve, REFRESH_TIMEOUT_MS - (now - pending.startedAt), null).unref())
       // .catch(next): an error here must reach the error handler — left unhandled, a
       // rejected promise takes the whole worker process down.
       return Promise.race([pending.promise, giveUp])
-        .then((entry) => (entry ? send(res, entry, 'HIT') : next()))
+        .then((entry) => (entry ? send(req, res, entry, 'HIT') : next()))
         .catch(next)
     }
 
@@ -65,7 +84,9 @@ export function responseCache(ttlSeconds) {
     res.json = (body) => {
       if (res.statusCode === 200) {
         const headers = KEPT_HEADERS.filter((name) => res.get(name) !== undefined).map((name) => [name, res.get(name)])
-        const entry = { body: JSON.stringify(body), headers, expires: Date.now() + ttlMs }
+        const text = JSON.stringify(body)
+        const gzip = Buffer.byteLength(text) >= GZIP_MIN_BYTES ? gzipSync(text) : null
+        const entry = { body: text, gzip, headers, expires: Date.now() + ttlMs }
         if (!store.has(key) && store.size >= MAX_ENTRIES) store.delete(store.keys().next().value)
         store.set(key, entry)
         finish(entry)

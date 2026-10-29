@@ -1,7 +1,23 @@
 import { test, describe, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import http from 'node:http'
+import { gunzipSync } from 'node:zlib'
 import express from 'express'
+import compression from 'compression'
 import { responseCache } from './responseCache.js'
+
+// fetch() always asks for and silently unpacks gzip, so raw http shows what was really sent.
+function rawGet(url, acceptEncoding) {
+  return new Promise((resolve, reject) => {
+    http
+      .get(url, { headers: acceptEncoding ? { 'accept-encoding': acceptEncoding } : {} }, (res) => {
+        const chunks = []
+        res.on('data', (c) => chunks.push(c))
+        res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }))
+      })
+      .on('error', reject)
+  })
+}
 
 describe('responseCache', () => {
   let server
@@ -26,6 +42,9 @@ describe('responseCache', () => {
     app.get('/slow', responseCache(60), (_req, res) => {
       slowCalls += 1
       setTimeout(() => res.json({ call: slowCalls }), 50)
+    })
+    app.get('/big', compression(), responseCache(60), (_req, res) => {
+      res.json(Array.from({ length: 200 }, (_, i) => ({ id: `job-${i}`, title: 'Software engineer' })))
     })
     app.get('/short', responseCache(1), (_req, res) => {
       shortCalls += 1
@@ -75,6 +94,24 @@ describe('responseCache', () => {
     const fresh = await fetch(`${base}/short`)
     assert.equal(fresh.headers.get('x-cache'), 'HIT')
     assert.deepEqual(await fresh.json(), { call: 2 })
+  })
+
+  test('a large HIT is served pre-gzipped to clients that accept gzip', async () => {
+    await rawGet(`${base}/big`, 'gzip')
+    const hit = await rawGet(`${base}/big`, 'gzip, deflate, br')
+    assert.equal(hit.headers['x-cache'], 'HIT')
+    assert.equal(hit.headers['content-encoding'], 'gzip')
+    assert.match(hit.headers['vary'] ?? '', /Accept-Encoding/i)
+    assert.equal(JSON.parse(gunzipSync(hit.body).toString()).length, 200)
+  })
+
+  test('a client that does not accept gzip gets the plain body', async () => {
+    const plain = await rawGet(`${base}/big`)
+    assert.equal(plain.headers['x-cache'], 'HIT')
+    assert.equal(plain.headers['content-encoding'], undefined)
+    assert.equal(JSON.parse(plain.body.toString()).length, 200)
+    const refused = await rawGet(`${base}/big`, 'gzip;q=0, identity')
+    assert.equal(refused.headers['content-encoding'], undefined)
   })
 
   test('an error response is not cached', async () => {
