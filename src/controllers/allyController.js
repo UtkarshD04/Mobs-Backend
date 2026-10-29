@@ -1,5 +1,6 @@
 import { asyncHandler } from '../utils/asyncHandler.js'
 import AllyApplication from '../models/AllyApplication.js'
+import { isValidPhone, MOBILE_ERROR } from '../utils/indianMobile.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -22,7 +23,7 @@ export const submitApplication = asyncHandler(async (req, res) => {
   const missing = ['name', 'email', 'college', 'city', 'course', 'experience', 'why'].filter((k) => !data[k])
   if (missing.length) return res.status(400).json({ message: 'Please fill in all the required fields' })
   if (!EMAIL_RE.test(data.email)) return res.status(400).json({ message: 'Enter a valid email address' })
-  if (data.phone && data.phone.replace(/\D/g, '').length < 10) return res.status(400).json({ message: 'Enter a 10-digit phone number' })
+  if (data.phone && !isValidPhone(data.phone)) return res.status(400).json({ message: MOBILE_ERROR })
 
   const application = await AllyApplication.create(data)
   res.status(201).json({ id: application.id })
