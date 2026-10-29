@@ -46,6 +46,9 @@ export const sendNotification = asyncHandler(async (req, res) => {
   const config = AUDIENCES[audience]
   if (!config) return res.status(400).json({ message: 'audience must be employee, employer or staff' })
   if (!title || !body) return res.status(400).json({ message: 'title and body are required' })
+  // Messaging picked people stays open to every staff member; reaching everyone at once is
+  // admin-only, so one compromised worker account can't push a message to the whole user base.
+  if (broadcast && req.staff.accessLevel !== 'admin') return res.status(403).json({ message: 'Only an admin can send to everyone' })
   if (!broadcast && (!Array.isArray(recipientIds) || !recipientIds.length)) {
     return res.status(400).json({ message: 'recipientIds is required unless broadcast is true' })
   }

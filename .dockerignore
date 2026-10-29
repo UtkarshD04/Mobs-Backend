@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+!.env.example
+uploads
+_local_wip_backup
+.git
+*.bak
+npm-debug.log
