@@ -100,9 +100,10 @@ export const env = {
   },
   // Employer-app store review login: this one number skips MSG91 and accepts this fixed code on
   // the employer side only. Both blank = off. Pick an OTP that isn't guessable.
+  // Trimmed and unquoted: a pasted `"9000000001" ` would otherwise never match and silently turn the login off.
   employerReviewLogin: {
-    phone: process.env.EMPLOYER_REVIEW_LOGIN_PHONE ?? '',
-    otp: process.env.EMPLOYER_REVIEW_LOGIN_OTP ?? '',
+    phone: (process.env.EMPLOYER_REVIEW_LOGIN_PHONE ?? '').trim().replace(/^['"]|['"]$/g, ''),
+    otp: (process.env.EMPLOYER_REVIEW_LOGIN_OTP ?? '').trim().replace(/^['"]|['"]$/g, ''),
   },
   // MSG91 OTP API — https://control.msg91.com. Left blank, mobile OTP
   // verification fails cleanly with a 503 instead of crashing (same
