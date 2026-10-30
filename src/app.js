@@ -129,6 +129,9 @@ app.get('/mobile/google-callback', googleMobileCallback)
 app.use('/files', (_req, res, next) => {
   res.removeHeader('X-Frame-Options')
   res.setHeader('Content-Security-Policy', `frame-ancestors 'self' ${env.corsOrigin.join(' ')}`)
+  // Helmet's default `same-origin` would stop the frontends (separate origins)
+  // from showing candidate photos in an <img>; links are token-gated anyway.
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
   next()
 })
 app.use('/files', apiLimiter, fileAccessRoutes)
